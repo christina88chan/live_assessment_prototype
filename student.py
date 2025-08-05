@@ -1,4 +1,11 @@
 import streamlit as st
+import google.generativeai as genai
+import io
+import os
+from streamlit_mic_recorder import mic_recorder
+from google.api_core.exceptions import GoogleAPIError
+from datetime import datetime
+import json
 
 def create_admin_view_button():
     col1, col2, col3 = st.columns([1, 1, 1])
