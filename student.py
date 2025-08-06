@@ -14,12 +14,12 @@ def create_admin_view_button():
             st.switch_page("pages/admin_home.py")
 
 st.header("Tech4Good Live Assessment Tool")
-st.subheader("Student Submission View")
 create_admin_view_button()
+
 
 ### code copy pasted from Aashna's streamlit demo: ###
 
-st.set_page_config(page_title="Message Drop", layout="centered")
+st.set_page_config(page_title="Live Assessment Tool", layout="centered")
 
 # Custom CSS styling
 st.markdown("""
@@ -92,8 +92,7 @@ button[kind="primary"]:hover {
 
 # Elegant UI container
 st.markdown("""
-<div style='background-color:#fff0f5;padding:20px;border-radius:10px'>
-    <h2 style='color:#262730;text-align:center;'>Text-based Grading</h2>
+<div  
     <p style='text-align:center;'>Answer the question with an audio recording, get it transcribed, and graded.</p>
 </div>
 """, unsafe_allow_html=True)
@@ -115,29 +114,43 @@ if 'grade_feedback' not in st.session_state:
 # --- Hardcoded Question ---
 HARDCODED_QUESTION = """Explain your initial thoughts to the assessment question here"""
 
-st.subheader("Question:")
-st.info(HARDCODED_QUESTION)
+# --- Layout Start ---
+col_left, col_right = st.columns([1, 1])
 
+# --- Left Half --- 
+with col_left: 
+    
+    st.markdown("### Question:")
+    st.info(HARDCODED_QUESTION)
+    st.subheader("Your Gemini API Key")
+    api_key = st.text_input("Enter API Key", type="password", help="Used for transcription only. Not stored")
+#st.subheader("Question:")
+#st.info(HARDCODED_QUESTION)
 
-
+# ---Right Half ---
+with col_right:
+    visitor_input_id = st.text_input("Name", key="visitor_id_input")
+  
+    
 
 # --- Core App Logic ---
 # Visitor ID Input
-visitor_input_id = st.text_input("Name:", key="visitor_id_input")
+#visitor_input_id = st.text_input("Name:", key="visitor_id_input")
 
 # Gemini API Key Input
-st.subheader("your Gemini API key")
-api_key = st.text_input(
-    "enter your Gemini API Key:",
-    type="password",
-    help="This key is used only for your message transcription and is not stored.",
-    key="gemini_api_key_input"
-)
+#st.subheader("your Gemini API key")
+#api_key = st.text_input(
+    #"enter your Gemini API Key:",
+    #type="password",
+   #help="This key is used only for your message transcription and is not stored.",
+   # key="gemini_api_key_input"
+#)
 
 
 # --- Conditional Display based on API Key ---
 if not api_key:
-    st.info("please enter your Gemini API Key to enable recording and transcription.")
+    with col_left:
+        st.info("please enter your Gemini API Key to enable recording and transcription.")
 else:
     # Configure Gemini API
     try:
@@ -148,196 +161,197 @@ else:
         api_key = None # Invalidate API key for this session if configuration fails
 
 if api_key: # Only show recording/transcription if API key is valid
-    st.subheader("Record Your Answer")
+    with col_right:
+        st.subheader("Record Your Answer")
 
     # Mic Recorder
-    recorded_audio_output = mic_recorder(
-        start_prompt="Click to Start Recording",
-        stop_prompt="Click to Stop Recording",
-        use_container_width=True,
-        key='audio_recorder'
-    )
+        recorded_audio_output = mic_recorder(
+            start_prompt="Click to Start Recording",
+            stop_prompt="Click to Stop Recording",
+            use_container_width=True,
+            key='audio_recorder'
+        )
 
-    if recorded_audio_output and recorded_audio_output['bytes']:
-        st.session_state.recorded_audio_bytes = recorded_audio_output['bytes']
-        st.audio(st.session_state.recorded_audio_bytes, format="audio/wav")
-        st.info("Recorded audio ready for transcription.")
+        if recorded_audio_output and recorded_audio_output['bytes']:
+            st.session_state.recorded_audio_bytes = recorded_audio_output['bytes']
+            st.audio(st.session_state.recorded_audio_bytes, format="audio/wav")
+            st.info("Recorded audio ready for transcription.")
         # Trigger transcription immediately after recording is done
-        st.session_state.show_editor = True # Show editor after recording
+            st.session_state.show_editor = True # Show editor after recording
 
 
-    if st.session_state.show_editor and st.session_state.recorded_audio_bytes:
+        if st.session_state.show_editor and st.session_state.recorded_audio_bytes:
         # --- Transcribe Button ---
-        if st.button("transcribe recording", key="transcribe_audio_button"):
-            if not visitor_input_id:
-                st.warning("Please enter your Name / ID before transcribing.")
-            else:
-                with st.spinner("Transcribing your audio..."):
-                    try:
-                        mime_type = "audio/wav"
-                        audio_io = io.BytesIO(st.session_state.recorded_audio_bytes)
-                        audio_io.name = "recorded_audio.wav"
+            if st.button("transcribe recording", key="transcribe_audio_button"):
+                if not visitor_input_id:
+                    st.warning("Please enter your Name / ID before transcribing.")
+                else:
+                    with st.spinner("Transcribing your audio..."):
+                        try:
+                            mime_type = "audio/wav"
+                            audio_io = io.BytesIO(st.session_state.recorded_audio_bytes)
+                            audio_io.name = "recorded_audio.wav"
 
-                        audio_file = genai.upload_file(
-                            path=audio_io,
-                            mime_type=mime_type,
-                            display_name=f"Answer_from_{visitor_input_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-                        )
+                            audio_file = genai.upload_file(
+                                path=audio_io,
+                                mime_type=mime_type,
+                                display_name=f"Answer_from_{visitor_input_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+                            )
 
-                        while audio_file.state.name == "PROCESSING":
-                            st.info("File is still processing on Gemini's side...")
-                            import time
-                            time.sleep(1)
-                            audio_file = genai.get_file(audio_file.name)
+                            while audio_file.state.name == "PROCESSING":
+                                st.info("File is still processing on Gemini's side...")
+                                import time
+                                time.sleep(1)
+                                audio_file = genai.get_file(audio_file.name)
 
-                        prompt = "Transcribe the given audio accurately. Provide only the spoken text."
-                        model = genai.GenerativeModel('models/gemini-1.5-flash-latest') # Ensure model is available
-                        response = model.generate_content([audio_file, prompt])
-                        st.session_state.edited_transcription_text = response.text
+                            prompt = "Transcribe the given audio accurately. Provide only the spoken text."
+                            model = genai.GenerativeModel('models/gemini-1.5-flash-latest') # Ensure model is available
+                            response = model.generate_content([audio_file, prompt])
+                            st.session_state.edited_transcription_text = response.text
 
-                        st.success("Transcription complete! You can now edit it.")
+                            st.success("Transcription complete! You can now edit it.")
 
-                    except GoogleAPIError as api_err:
-                        st.error(f"Gemini API Error: {api_err.message}")
-                        st.info("Please check your API key validity, ensure billing is enabled, or audio is not too long.")
-                        st.exception(api_err)
-                    except Exception as e:
-                        st.error(f"An unexpected error occurred during transcription: {e}")
-                        st.info("Ensure the audio recording was successful.")
-                        st.exception(e)
+                        except GoogleAPIError as api_err:
+                            st.error(f"Gemini API Error: {api_err.message}")
+                            st.info("Please check your API key validity, ensure billing is enabled, or audio is not too long.")
+                            st.exception(api_err)
+                        except Exception as e:
+                            st.error(f"An unexpected error occurred during transcription: {e}")
+                            st.info("Ensure the audio recording was successful.")
+                            st.exception(e)
 
         # --- Transcription Editor ---
-        if st.session_state.edited_transcription_text:
-            st.subheader("Review and Edit Your Answer:")
-            st.session_state.edited_transcription_text = st.text_area(
-                "Edit your transcribed answer here:",
-                value=st.session_state.edited_transcription_text,
-                height=200,
-                key="transcription_editor"
-            )
+            if st.session_state.edited_transcription_text:
+                st.subheader("Review and Edit Your Answer:")
+                st.session_state.edited_transcription_text = st.text_area(
+                    "Edit your transcribed answer here:",
+                    value=st.session_state.edited_transcription_text,
+                    height=200,
+                    key="transcription_editor"
+                )
 
             # --- Grade Button ---
-            if st.button("grade response", key="grade_response_button"):
-                if not st.session_state.edited_transcription_text.strip():
-                     st.warning("Transcription is empty. Record and transcribe your audio first.")
-                else:
-                    with st.spinner("Getting evaluation from Gemini..."):
-                        try:
+                if st.button("grade response", key="grade_response_button"):
+                    if not st.session_state.edited_transcription_text.strip():
+                        st.warning("Transcription is empty. Record and transcribe your audio first.")
+                    else:
+                        with st.spinner("Getting evaluation from Gemini..."):
+                            try:
                             # Use Gemini to grade the response based on the prompt and transcription
-                            grading_model = genai.GenerativeModel('models/gemini-1.5-flash-latest')
-                            student_submission=st.session_state.edited_transcription_text
+                                grading_model = genai.GenerativeModel('models/gemini-1.5-flash-latest')
+                                student_submission=st.session_state.edited_transcription_text
                             ### Evaluation Prompt ###
 
-                            course_name = "Generative AI Skill-Building"
+                                course_name = "Generative AI Skill-Building"
 
-                            course_goals = "to learn how to use and evaluate AI models"
+                                course_goals = "to learn how to use and evaluate AI models"
 
-                            key_concepts = "Prompt Engineering, Prompt Workflow, Evaluation Metrics"
+                                key_concepts = "Prompt Engineering, Prompt Workflow, Evaluation Metrics"
 
-                            assessment_summary = '''
-                            Create a Prompt Engineering Workflow to generate personalized Human Bingo squares that facilitate meaningful connections between participants based on their survey responses.
+                                assessment_summary = '''
+                                Create a Prompt Engineering Workflow to generate personalized Human Bingo squares that facilitate meaningful connections between participants based on their survey responses.
 
-                            Requirements:
-                            - Generate 6 general squares (3 popular themes, 3 niche themes)
-                            - Create up to 3 personalized squares per participant
-                            - Use LLM prompts to extract themes and match participants
-                            - Include evaluation metrics for assessing output quality
-                            '''
+                                Requirements:
+                                - Generate 6 general squares (3 popular themes, 3 niche themes)
+                                - Create up to 3 personalized squares per participant
+                                - Use LLM prompts to extract themes and match participants
+                                - Include evaluation metrics for assessing output quality
+                                '''
 
-                            assessment_reflection_instructions = '''The student reflections should cover the following:
-                            • a brief outline of initial thoughts about how they might break down the task,
-                            • discussion of how they created and intiial prompt how they plan to iterate on it next based on results,
-                            • initial thoughts on evaluation metrics they will use to evaluate results of their prompts.'''
+                                assessment_reflection_instructions = '''The student reflections should cover the following:
+                                • a brief outline of initial thoughts about how they might break down the task,
+                                • discussion of how they created and intiial prompt how they plan to iterate on it next based on results,
+                                • initial thoughts on evaluation metrics they will use to evaluate results of their prompts.'''
 
-                            purpose = f'''You are a Teaching Assistant and you will be evaluating student reflections based on a given rubric. Students are taking part in a {course_name} course to {course_goals}. This includes learning the key concepts of {key_concepts} if a students submission does not include anything to grade (empty submission) then provide 0s for all the concepts and say missing submission for the reasoning since every student still requires a grade.'''
+                                purpose = f'''You are a Teaching Assistant and you will be evaluating student reflections based on a given rubric. Students are taking part in a {course_name} course to {course_goals}. This includes learning the key concepts of {key_concepts} if a students submission does not include anything to grade (empty submission) then provide 0s for all the concepts and say missing submission for the reasoning since every student still requires a grade.'''
 
-                            assessment_details = f'''Students were given an assessment where they had to solve a complex problem to test their understanding of {key_concepts}.
-                            Before the students started working on the problem, they were required to submit an initial reflection on how they plan to tackle the problem to assess their understandings of the key concepts of the course.
-                            {assessment_reflection_instructions}'''
+                                assessment_details = f'''Students were given an assessment where they had to solve a complex problem to test their understanding of {key_concepts}.
+                                Before the students started working on the problem, they were required to submit an initial reflection on how they plan to tackle the problem to assess their understandings of the key concepts of the course.
+                                {assessment_reflection_instructions}'''
 
-                            model_instructions = ''' Your task is to take these intial student reflections on how they plan to tackle the problem and assess their understanding of key concepts given in the rubric below: '''
+                                model_instructions = ''' Your task is to take these intial student reflections on how they plan to tackle the problem and assess their understanding of key concepts given in the rubric below: '''
 
-                            rubric_json = {
+                                rubric_json = {
 
-                              "Prompt Engineering" : {
-                                  "Description" : "utilizes clear instructions, examples, formatting requirements and other best practices to design effective prompts.",
-                                  "Grades" : {
-                                    "Missing (0%)": "No prompts are designed.",
-                                    "Major Misconceptions (50%)": "Prompts poorly designed with short or unclear instructions. no formatting requirements and no or few examples and step-by-step guidance",
-                                    "Nearly Proficient (80%)": "Prompts designed with some clarity, but instructions, formatting requirements, or examples may be irrelevant or lack important details",
-                                    "Proficient (100%)": "Prompts well-designed with clear instructions, relevant examples, and logical step-by-step thinking",
-                                    "Mastery (102%)": "Prompts exceptionally well-designed with clear instructions, highly relevant and illustrative examples, and comprehensive step-by-step guidance for the task and format"
-                                  }
-                              },
+                                "Prompt Engineering" : {
+                                    "Description" : "utilizes clear instructions, examples, formatting requirements and other best practices to design effective prompts.",
+                                    "Grades" : {
+                                        "Missing (0%)": "No prompts are designed.",
+                                        "Major Misconceptions (50%)": "Prompts poorly designed with short or unclear instructions. no formatting requirements and no or few examples and step-by-step guidance",
+                                        "Nearly Proficient (80%)": "Prompts designed with some clarity, but instructions, formatting requirements, or examples may be irrelevant or lack important details",
+                                        "Proficient (100%)": "Prompts well-designed with clear instructions, relevant examples, and logical step-by-step thinking",
+                                        "Mastery (102%)": "Prompts exceptionally well-designed with clear instructions, highly relevant and illustrative examples, and comprehensive step-by-step guidance for the task and format"
+                                    }
+                                },
 
-                              "Prompt Workflow Breakdown" : {
-                                "Description" : "demonstrates clear step-by-step thinking to effectively breakdown into a series of prompts.",
-                                "Grades" : {
-                                  "Missing (0%)": "Problem Solution not broken down into series of steps and prompts",
-                                  "Major Misconceptions (50%)": "Prompt breakdown poorly designed with very few or irrelevant steps",
-                                  "Nearly Proficient (80%)": "Prompt workflow designed with some steps and clarity, but may lack important details or steps",
-                                  "Proficient (100%)": "Prompts workflow well-designed with clear instructions and logical step-by-step thinking",
-                                  "Mastery (102%)": "Prompt Workflow exceptionally well-designed with clear instructions and comprehensive step-by-step breakdown"
+                                "Prompt Workflow Breakdown" : {
+                                    "Description" : "demonstrates clear step-by-step thinking to effectively breakdown into a series of prompts.",
+                                    "Grades" : {
+                                    "Missing (0%)": "Problem Solution not broken down into series of steps and prompts",
+                                    "Major Misconceptions (50%)": "Prompt breakdown poorly designed with very few or irrelevant steps",
+                                    "Nearly Proficient (80%)": "Prompt workflow designed with some steps and clarity, but may lack important details or steps",
+                                    "Proficient (100%)": "Prompts workflow well-designed with clear instructions and logical step-by-step thinking",
+                                    "Mastery (102%)": "Prompt Workflow exceptionally well-designed with clear instructions and comprehensive step-by-step breakdown"
+                                    }
+                                },
+
+                                "Evaluation Metrics" : {
+                                    "Description" : "defines metrics that are well-defined and relevant to the problem",
+                                    "Grades" : {
+                                    "Missing (0%)": "No metrics are defined.",
+                                    "Major Misconceptions (50%)": "Not enough metrics designed or metrics may not be applicable to the problem context",
+                                    "Nearly Proficient (80%)": "Metrics have been defined but may be lacking clarity. Some metrics may not be relevant to the problem context",
+                                    "Proficient (100%)": "Metrics are well designed; metrics are applicable and provide helpful insights for the problem context",
+                                    "Mastery (102%)": "Metrics are fully defined with perfect clarity They are applicable and provide helpful insights for the problem context"
+                                    }
+                                },
                                 }
-                              },
 
-                              "Evaluation Metrics" : {
-                                "Description" : "defines metrics that are well-defined and relevant to the problem",
-                                "Grades" : {
-                                  "Missing (0%)": "No metrics are defined.",
-                                  "Major Misconceptions (50%)": "Not enough metrics designed or metrics may not be applicable to the problem context",
-                                  "Nearly Proficient (80%)": "Metrics have been defined but may be lacking clarity. Some metrics may not be relevant to the problem context",
-                                  "Proficient (100%)": "Metrics are well designed; metrics are applicable and provide helpful insights for the problem context",
-                                  "Mastery (102%)": "Metrics are fully defined with perfect clarity They are applicable and provide helpful insights for the problem context"
-                                }
-                              },
-                            }
+                                rubric_instructions = f'''For each of the three key concepts in the rubric: {key_concepts}, assign the student one of the Grades between Missing, Major Miconceptions, Nearly Proficient, Proficient, Mastery based on their understanding. Ensure the grades directly reflects the sum of the strengths and weaknesses identified in the critiques.'''
 
-                            rubric_instructions = f'''For each of the three key concepts in the rubric: {key_concepts}, assign the student one of the Grades between Missing, Major Miconceptions, Nearly Proficient, Proficient, Mastery based on their understanding. Ensure the grades directly reflects the sum of the strengths and weaknesses identified in the critiques.'''
+                                expected_output_format = f'''
+                                Assessment Scores:
 
-                            expected_output_format = f'''
-                            Assessment Scores:
+                                Concept: [Concept Name]
+                                Grade: [Grade]
+                                Reasoning: [Rationale for score]
 
-                            Concept: [Concept Name]
-                            Grade: [Grade]
-                            Reasoning: [Rationale for score]
+                                Concept: [Concept Name]
+                                Grade: [Grade]
+                                Reasoning: [Rationale for score]
 
-                            Concept: [Concept Name]
-                            Grade: [Grade]
-                            Reasoning: [Rationale for score]
+                                Concept: [Concept Name]
+                                Grade: [Grade]
+                                Reasoning: [Rationale for score]
 
-                            Concept: [Concept Name]
-                            Grade: [Grade]
-                            Reasoning: [Rationale for score]
+                                Examples:
+                                Concept: "Prompt Engineering"
+                                Grade: Nearly Proficient
+                                Reasoning: The student reflected on how their prompt needs to be detailed and the details it should include. But they did not mention any plan to use strong prompting techniques like adding an example or formatting instructions to design their prompts.
 
-                            Examples:
-                            Concept: "Prompt Engineering"
-                            Grade: Nearly Proficient
-                            Reasoning: The student reflected on how their prompt needs to be detailed and the details it should include. But they did not mention any plan to use strong prompting techniques like adding an example or formatting instructions to design their prompts.
+                                Concept: "Prompt Engineering"
+                                Grade: Missing
+                                Reasoning: The student's reflection does not mention anything about prompt design or how they plan to structure their prompts. They focus only on the end goal without considering how to effectively communicate with the LLM.
 
-                            Concept: "Prompt Engineering"
-                            Grade: Missing
-                            Reasoning: The student's reflection does not mention anything about prompt design or how they plan to structure their prompts. They focus only on the end goal without considering how to effectively communicate with the LLM.
+                                Concept: "Prompt Engineering"
+                                Grade: Major Misconceptions
+                                Reasoning: The student mentions wanting to "tell the AI what to do" but shows limited understanding of prompt design principles. Their reflection lacks any consideration of prompt structure, clarity, or techniques beyond basic instruction-giving.
 
-                            Concept: "Prompt Engineering"
-                            Grade: Major Misconceptions
-                            Reasoning: The student mentions wanting to "tell the AI what to do" but shows limited understanding of prompt design principles. Their reflection lacks any consideration of prompt structure, clarity, or techniques beyond basic instruction-giving.
+                                Concept: "Prompt Engineering"
+                                Grade: Nearly Proficient
+                                Reasoning: The student demonstrates understanding that prompts need to be detailed and mentions planning to iterate on prompts based on results. However, their reflection lacks discussion of specific prompt engineering techniques like including examples, formatting requirements, or step-by-step instructions in their initial planning.
 
-                            Concept: "Prompt Engineering"
-                            Grade: Nearly Proficient
-                            Reasoning: The student demonstrates understanding that prompts need to be detailed and mentions planning to iterate on prompts based on results. However, their reflection lacks discussion of specific prompt engineering techniques like including examples, formatting requirements, or step-by-step instructions in their initial planning.
+                                Concept: "Prompt Engineering"
+                                Grade: Nearly Proficient
+                                Reasoning: The student understands the importance of clear communication with the LLM and plans to be specific in their instructions. However, their reflection focuses mainly on content rather than considering prompt structure, formatting techniques, or the use of examples to guide the model's responses.
 
-                            Concept: "Prompt Engineering"
-                            Grade: Nearly Proficient
-                            Reasoning: The student understands the importance of clear communication with the LLM and plans to be specific in their instructions. However, their reflection focuses mainly on content rather than considering prompt structure, formatting techniques, or the use of examples to guide the model's responses.
+                                Concept: "Prompt Engineering"
+                                Grade: Proficient
+                                Reasoning: The student shows clear understanding of prompt design principles, mentioning plans to include clear instructions, provide examples, and structure their prompts with specific formatting. They demonstrate awareness of iterative refinement and the importance of prompt clarity.
 
-                            Concept: "Prompt Engineering"
-                            Grade: Proficient
-                            Reasoning: The student shows clear understanding of prompt design principles, mentioning plans to include clear instructions, provide examples, and structure their prompts with specific formatting. They demonstrate awareness of iterative refinement and the importance of prompt clarity.
-
-                            Concept: "Prompt Engineering"
-                            Grade: Mastery
-                            Reasoning: The student demonstrates exceptional understanding of prompt engineering, discussing plans to use multiple techniques including examples, step-by-step guidance, output formatting, and context setting. They show sophisticated thinking about prompt optimization and mention specific strategies for different types of tasks.
+                                Concept: "Prompt Engineering"
+                                Grade: Mastery
+                                Reasoning: The student demonstrates exceptional understanding of prompt engineering, discussing plans to use multiple techniques including examples, step-by-step guidance, output formatting, and context setting. They show sophisticated thinking about prompt optimization and mention specific strategies for different types of tasks.
 
                             Concept: "Prompt Workflow"
                             Grade: Missing
@@ -388,7 +402,7 @@ if api_key: # Only show recording/transcription if API key is valid
                             Reasoning: The student shows exceptional understanding of evaluation design, proposing multiple complementary metrics that cover different aspects of quality. They demonstrate sophisticated thinking about both automated and manual evaluation methods, and consider how metrics relate to the problem's ultimate goals.
                             '''
 
-                            expected_output_examples = f'''
+                                expected_output_examples = f'''
                             Student Submission Example 1:
                             "These 2 prompts iterate off of the initial extraction of the themes. Instead of having to cross reference all the raw data in one prompt, it can simply use the themes and subthemes that are already specified with connections. This way it doesn’t have to run for as long and lowers the risk of hallucination since it already has the data it needs.  For evaluation I would ensure that the number of squares are met and the connections it has created between users is real. I would also search for relevance within the themes to ensure that the initial prompt is not messing up the others."
 
@@ -506,7 +520,7 @@ if api_key: # Only show recording/transcription if API key is valid
                             "
                             '''
 
-                            master_prompt = f'''
+                                master_prompt = f'''
 
                                 Purpose: {purpose}
 
@@ -535,17 +549,17 @@ if api_key: # Only show recording/transcription if API key is valid
 
                             ### End of Evaluation Prompt ###
 
-                            grading_prompt_formatted = master_prompt
-                            grading_response = grading_model.generate_content(grading_prompt_formatted)
-                            st.session_state.grade_feedback = grading_response.text
-                            st.success("Evaluation complete!")
+                                grading_prompt_formatted = master_prompt
+                                grading_response = grading_model.generate_content(grading_prompt_formatted)
+                                st.session_state.grade_feedback = grading_response.text
+                                st.success("Evaluation complete!")
 
-                        except GoogleAPIError as api_err:
-                            st.error(f"Gemini API Error during grading: {api_err.message}")
-                            st.exception(api_err)
-                        except Exception as e:
-                            st.error(f"An unexpected error occurred during grading: {e}")
-                            st.exception(e)
+                            except GoogleAPIError as api_err:
+                                st.error(f"Gemini API Error during grading: {api_err.message}")
+                                st.exception(api_err)
+                            except Exception as e:
+                                st.error(f"An unexpected error occurred during grading: {e}")
+                                st.exception(e)
 
             # --- Display Grade Feedback ---
             if st.session_state.grade_feedback:
@@ -580,5 +594,5 @@ if api_key: # Only show recording/transcription if API key is valid
                         st.session_state.show_editor = False
                         st.session_state.grade_feedback = None
                         st.rerun() # Rerun to clear forms for a new message
-    else:
-        st.info("record your audio answer to begin transcription!")
+        else:
+            st.info("record your audio answer to begin transcription!")
