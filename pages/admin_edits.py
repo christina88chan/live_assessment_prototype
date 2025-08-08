@@ -1,92 +1,149 @@
+# pages/admin_edits.py
+
 import streamlit as st
-from pages.admin_home import create_admin_sidebar, create_student_view_button # Import the functions
+from ui_shared import admin_sidebar, student_top_button
+from supabase_client import upsert_assignment
 
-# Initialize session state for rubric and prompt if they don't exist
-if 'rubric_content' not in st.session_state:
-    st.session_state.rubric_content = ""
+# -----------------------------
+# Init state
+# -----------------------------
+DEFAULTS = {
+    "assignment_title": "",
+    "question_text": "",
+    "rubric_content": "",
+}
+for k, v in DEFAULTS.items():
+    if k not in st.session_state:
+        st.session_state[k] = v
 
-if 'ai_prompt' not in st.session_state:
-    st.session_state.ai_prompt = ""
-
-# Display the page content
+# -----------------------------
+# Page chrome
+# -----------------------------
 st.header("Admin Edits")
+admin_sidebar()
+student_top_button()
 
-# Create the navigation elements by calling the imported functions
-create_admin_sidebar()
-create_student_view_button()
+st.markdown("Create assignments for your students. Define the question and the grading criteria below.")
 
-# Add some spacing
-st.markdown("---")
+# -----------------------------
+# Title at the top
+# -----------------------------
+st.subheader("Title")
+col_t1, col_t2, col_t3 = st.columns([4, 1, 1])
+with col_t1:
+    new_title = st.text_input("Assignment title", value=st.session_state.assignment_title, key="title_input")
+with col_t2:
+    if st.button("Save Title", key="save_title"):
+        st.session_state.assignment_title = new_title
+        st.success("Title saved.")
+        st.rerun()
+with col_t3:
+    if st.button("Clear Title", key="clear_title"):
+        st.session_state.assignment_title = ""
+        st.success("Title cleared.")
+        st.rerun()
 
-# Main content area for rubric and prompt management
-col1, col2 = st.columns([1, 1])
+st.caption(f"Current title: {st.session_state.assignment_title or 'Untitled'}")
 
-with col1:
+# -----------------------------
+# Two-column editor
+# -----------------------------
+col_left, col_right = st.columns(2)
+
+with col_left:
+    st.subheader("📝 Question")
+    with st.expander("Edit question", expanded=True):
+        q_val = st.text_area(
+            "Write the question students will answer:",
+            value=st.session_state.question_text,
+            height=220,
+            key="question_text_area",
+        )
+        q1, q2 = st.columns(2)
+        with q1:
+            if st.button("💾 Save Question", key="save_question"):
+                st.session_state.question_text = q_val
+                st.success("Question saved.")
+                st.rerun()
+        with q2:
+            if st.button("🗑️ Clear Question", key="clear_question"):
+                st.session_state.question_text = ""
+                st.success("Question cleared.")
+                st.rerun()
+    with st.expander("Preview question", expanded=False):
+        if st.session_state.question_text:
+            st.text(st.session_state.question_text)
+        else:
+            st.info("No question saved yet.")
+
+with col_right:
     st.subheader("📋 Assessment Rubric")
-    
-    # Rubric editing section
-    with st.expander("Edit Rubric", expanded=True):
-        rubric_input = st.text_area(
-            "Rubric Content",
+    with st.expander("Edit rubric", expanded=True):
+        rubric_val = st.text_area(
+            "Paste or write your rubric:",
             value=st.session_state.rubric_content,
-            height=400,
-            placeholder="Enter your assessment rubric here. You can use markdown formatting for better presentation.",
-            help="Define your assessment criteria and scoring guidelines.",
-            key="rubric_textarea"
+            height=220,
+            key="rubric_text_area",
         )
-        
-        col1_1, col1_2 = st.columns([1, 1])
-        
-        with col1_1:
-            if st.button("💾 Save Rubric", type="primary"):
-                st.session_state.rubric_content = rubric_input
-                st.success("✅ Rubric saved successfully!")
+        col_r1, col_r2 = st.columns(2)
+        with col_r1:
+            if st.button("💾 Save Rubric", key="save_rubric"):
+                st.session_state.rubric_content = rubric_val
+                st.success("Rubric saved.")
                 st.rerun()
-        
-        with col1_2:
-            if st.button("🗑️ Clear Rubric"):
+        with col_r2:
+            if st.button("🗑️ Clear Rubric", key="clear_rubric"):
                 st.session_state.rubric_content = ""
-                st.success("🗑️ Rubric cleared!")
+                st.success("Rubric cleared.")
                 st.rerun()
-    
-    # Rubric preview section
-    with st.expander("Preview Rubric", expanded=False):
+    with st.expander("Preview rubric", expanded=False):
         if st.session_state.rubric_content:
-            st.markdown(st.session_state.rubric_content)
+            st.text(st.session_state.rubric_content)
         else:
-            st.info("No rubric content to preview. Enter your rubric above to see the preview.")
+            st.info("No rubric content to preview.")
 
-with col2:
-    st.subheader("🤖 AI Assessment Prompt")
-    
-    # AI Prompt editing section
-    with st.expander("Edit AI Prompt", expanded=True):
-        prompt_input = st.text_area(
-            "AI Prompt Content",
-            value=st.session_state.ai_prompt,
-            height=400,
-            placeholder="Configure how the AI should assess student submissions based on your rubric. Be specific about the format and tone you want.",
-            help="Define instructions for the AI to follow when assessing student work.",
-            key="prompt_textarea"
-        )
-        
-        col2_1, col2_2 = st.columns([1, 1])
-        
-        with col2_1:
-            if st.button("💾 Save Prompt", type="primary"):
-                st.session_state.ai_prompt = prompt_input
-                st.success("✅ AI Prompt saved successfully!")
-                st.rerun()
-        
-        with col2_2:
-            if st.button("🗑️ Clear Prompt"):
-                st.session_state.ai_prompt = ""
-                st.success("🗑️ AI Prompt cleared!")
-                st.rerun()
-    
-    # AI Prompt preview section
-    with st.expander("Preview AI Prompt", expanded=False):
-        if st.session_state.ai_prompt:
-            st.text(st.session_state.ai_prompt)
-        else:
-            st.info("No AI prompt content to preview. Enter your prompt above to see the preview.")
+# -----------------------------
+# Bottom actions
+# -----------------------------
+col_b1, col_b2 = st.columns(2)
+with col_b1:
+    if st.button("New Assignment", key="new_assignment"):
+        for k in DEFAULTS:
+            st.session_state[k] = DEFAULTS[k]
+        st.success("Cleared. Start a new assignment.")
+        st.rerun()
+with col_b2:
+    st.caption("Fill in Title, Question, and Rubric below, then save.")
+
+# -----------------------------
+# Save to Supabase
+# -----------------------------
+if st.button("Save assignment to Supabase", type="primary", key="save_to_supabase"):
+    title = (st.session_state.assignment_title or "Untitled").strip()
+    question = (st.session_state.question_text or "").strip()
+    rubric = (st.session_state.rubric_content or "").strip()
+
+    if not title:
+        st.warning("Please enter a title before saving.")
+    elif not question:
+        st.warning("Please enter a question before saving.")
+    else:
+        try:
+            payload = {
+                "title": title,
+                "description": "",  # optional
+                "question_text": question,
+                "rubric_text": rubric,
+            }
+            if st.session_state.get("current_assignment_id"):
+                payload["id"] = st.session_state["current_assignment_id"]
+
+            result = upsert_assignment(payload)
+            data = (result or {}).get("data") or []
+            if data:
+                st.session_state["current_assignment_id"] = data[0].get("id")
+                st.success("Assignment saved to Supabase.")
+            else:
+                st.info("No data returned from Supabase. Check RLS policies and keys.")
+        except Exception as e:
+            st.error(f"Failed to save to Supabase: {e}")
