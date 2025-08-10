@@ -1,5 +1,6 @@
 # ui_shared.py
 import streamlit as st
+from supabase_client import sign_out
 
 def admin_sidebar():
     with st.sidebar:
@@ -13,6 +14,9 @@ def admin_sidebar():
         st.divider()
         if st.button("🎧 Student View", use_container_width=True, key="nav_student"):
             st.switch_page("student.py")
+        if st.button("Logout", use_container_width=True, key="nav_logout"):
+            st.switch_page("student.py")
+            sign_out()
 
 def student_top_button():
     col1, col2, col3 = st.columns([1, 1, 1])

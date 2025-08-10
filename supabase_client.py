@@ -70,3 +70,31 @@ def assignment_summaries() -> List[Dict[str, Any]]:
         info["avg_grade"] = round(sum(grades) / len(grades), 2) if grades else None
         info.pop("grades", None)
     return list(by_id.values())
+
+# --- Authentication Helpers ---
+def sign_up(email: str, password: str):
+    sb = get_client()
+    try:
+        user = sb.auth.sign_up({"email": email, "password": password})
+        return user
+    except Exception as e:
+        st.error(f"Registration failed: {e}")
+        return None
+
+def sign_in(email: str, password: str):
+    sb = get_client()
+    try:
+        user = sb.auth.sign_in_with_password({"email": email, "password": password})
+        return user
+    except Exception as e:
+        st.error(f"Login failed: {e}")
+        return None
+
+def sign_out():
+    sb = get_client()
+    try:
+        sb.auth.sign_out()
+        st.session_state.user_email = None
+        st.rerun()
+    except Exception as e:
+        st.error(f"Logout failed: {e}")

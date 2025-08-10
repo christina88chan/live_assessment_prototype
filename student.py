@@ -27,7 +27,7 @@ def create_admin_view_button():
     col1, col2, col3 = st.columns([1, 1, 1])
     with col3:
         if st.button("Admin Login"):
-            st.switch_page("pages/admin_home.py")
+            st.switch_page("pages/auth.py")
 
 st.header("Tech4Good Live Assessment Tool")
 create_admin_view_button()
