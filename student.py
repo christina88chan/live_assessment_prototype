@@ -13,7 +13,7 @@ import json
 from supabase_client import list_assignments, insert_submission
 
 # Streamlit needs this BEFORE any UI calls
-st.set_page_config(page_title="Live Assessment Tool", layout="centered")
+st.set_page_config(page_title="Live Assessment Tool", layout="wide")
 
 @st.cache_data(ttl=30)
 def fetch_assignments():
@@ -35,11 +35,18 @@ create_admin_view_button()
 # ---------- Styles ----------
 st.markdown("""
 <style>
+
 /* Main app background - dark muted lavender */
 .stApp {
     background-color: #3a2c3f;
     color: #f2f2f2; /* Global light text */
 }
+/* Float login button to top right */
+.top-right-button {
+    position: absolute;
+    top: 15px;
+    right: 25px;
+    z-index: 9999;
 
 /* Sidebar background - slightly lighter tone */
 [data-testid="stSidebar"] {
@@ -129,9 +136,11 @@ h1 {
   color: #ffe3ea !important;  /* light pastel */
   margin-top: 0 !important;
 }g
+/* Make columns breathe */
+[data-testid="stVerticalBlock"] {
+  gap: 1rem !important;
 </style>
 """, unsafe_allow_html=True)
-
 
 
 st.markdown(
@@ -205,7 +214,7 @@ HARDCODED_QUESTION = "Explain your initial thoughts to the assessment question h
 CURRENT_QUESTION = HARDCODED_QUESTION
 
 # ---------- Layout ----------
-col_left, col_right = st.columns([1, 1])
+col_left, col_right = st.columns([1.3, 0.7])
 
 # ----- Left: assignment & question -----
 with col_left:
