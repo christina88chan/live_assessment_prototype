@@ -114,6 +114,21 @@ h1, h2, h3, h4, h5 {
     padding: 12px;
     color: #f2f2f2;
 }
+/* Make Streamlit's top header transparent so it doesn't look like a black bar */
+[data-testid="stHeader"] {
+  background: transparent !important;
+  backdrop-filter: none !important;
+  border-bottom: none !important;
+}
+/* Nudge the main content down a touch so the title isn't cramped */
+.block-container {
+  padding-top: 1.5rem !important;
+}
+/* Ensure your main header is readable on the dark background */
+h1 {
+  color: #ffe3ea !important;  /* light pastel */
+  margin-top: 0 !important;
+}g
 </style>
 """, unsafe_allow_html=True)
 
