@@ -351,6 +351,53 @@ with col_right:
                                 st.error(f"An unexpected error occurred during transcription: {e}")
                                 st.info("Ensure the audio recording was successful.")
                                 st.exception(e)
+            # Inside tab_record, right under the recorder
+            if st.button("Submit Answer", key=_uk("save_message_button")):
+                if not st.session_state.get("visitor_id_input"):
+                    st.warning("Please enter your Name / ID before submitting.")
+                elif not st.session_state.edited_transcription_text.strip():
+                    st.warning("Answer content cannot be empty.")
+                elif not st.session_state.get("selected_assignment_id"):
+                    st.warning("Please choose an assignment before submitting.")
+                else:
+                    with st.spinner("Saving your response..."):
+                        save_filename = f"answer_from_{st.session_state.get('visitor_id_input')}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.wav"
+
+                        message_metadata = {
+                            "source_app": "Streamlit Text-based Grading",
+                            "gemini_model": "1.5-flash-latest",
+                            "original_audio_length_bytes": len(st.session_state.recorded_audio_bytes) if st.session_state.recorded_audio_bytes else 0,
+                            "question": CURRENT_QUESTION,
+                            "assignment_id": st.session_state.get("selected_assignment_id"),
+                            "grading_prompt": st.session_state.get("grading_prompt_text", ""),
+                            "grade_feedback": st.session_state.grade_feedback
+                        }
+
+                        try:
+                            payload = {
+                                "assignment_id": st.session_state["selected_assignment_id"],
+                                "student_name": st.session_state.get("visitor_id_input"),
+                                "transcript_text": st.session_state.edited_transcription_text,
+                                "grade_overall": None,
+                                "grade_json": {"text": st.session_state.grade_feedback} if st.session_state.grade_feedback else None,
+                            }
+                            data = insert_submission(payload)
+                            if data:
+                                st.success("Answer submitted and saved to Supabase!")
+                            else:
+                                st.warning("Submission saved locally, but Supabase didn’t return a row. Check RLS/policies.")
+                        except Exception as e:
+                            st.error(f"Failed to save to Supabase: {e}")
+
+            # Reset after submit
+                        st.session_state.recorded_audio_bytes = None
+                        st.session_state.edited_transcription_text = ""
+                        st.session_state.show_editor = False
+                        st.session_state.grade_feedback = None
+                        st.rerun()
+
+
+                            
 
         with tab_review:
             # Editor + Grade
@@ -494,50 +541,6 @@ if st.session_state.grade_feedback:
     st.subheader("Gemini Evaluation:")
     st.info(st.session_state.grade_feedback)
 
-# ---------- Submit to Supabase ----------
-if st.button("submit answer", key=_uk("save_message_button")):
-    if not st.session_state.get("visitor_id_input"):
-        st.warning("Please enter your Name / ID before submitting.")
-    elif not st.session_state.edited_transcription_text.strip():
-        st.warning("Answer content cannot be empty.")
-    elif not st.session_state.get("selected_assignment_id"):
-        st.warning("Please choose an assignment before submitting.")
-    else:
-        with st.spinner("Saving your response..."):
-            save_filename = f"answer_from_{st.session_state.get('visitor_id_input')}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.wav"
-
-            message_metadata = {
-                "source_app": "Streamlit Text-based Grading",
-                "gemini_model": "1.5-flash-latest",
-                "original_audio_length_bytes": len(st.session_state.recorded_audio_bytes) if st.session_state.recorded_audio_bytes else 0,
-                "question": CURRENT_QUESTION,
-                "assignment_id": st.session_state.get("selected_assignment_id"),
-                "grading_prompt": st.session_state.get("grading_prompt_text", ""),
-                "grade_feedback": st.session_state.grade_feedback
-            }
-
-            try:
-                payload = {
-                    "assignment_id": st.session_state["selected_assignment_id"],
-                    "student_name": st.session_state.get("visitor_id_input"),
-                    "transcript_text": st.session_state.edited_transcription_text,
-                    "grade_overall": None,
-                    "grade_json": {"text": st.session_state.grade_feedback} if st.session_state.grade_feedback else None,
-                }
-                data = insert_submission(payload)
-                if data:
-                    st.success("Answer submitted and saved to Supabase!")
-                else:
-                    st.warning("Submission saved locally, but Supabase didn’t return a row. Check RLS/policies.")
-            except Exception as e:
-                st.error(f"Failed to save to Supabase: {e}")
-
-            # Reset after submit
-            st.session_state.recorded_audio_bytes = None
-            st.session_state.edited_transcription_text = ""
-            st.session_state.show_editor = False
-            st.session_state.grade_feedback = None
-            st.rerun()
 
 # ---------- Fallback hint ----------
 if not st.session_state.recorded_audio_bytes:
