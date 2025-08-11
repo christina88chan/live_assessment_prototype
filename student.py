@@ -41,12 +41,6 @@ st.markdown("""
     background-color: #3a2c3f;
     color: #f2f2f2; /* Global light text */
 }
-/* Float login button to top right */
-.top-right-button {
-    position: absolute;
-    top: 15px;
-    right: 25px;
-    z-index: 9999;
 
 /* Sidebar background - slightly lighter tone */
 [data-testid="stSidebar"] {
