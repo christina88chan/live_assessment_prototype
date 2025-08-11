@@ -35,57 +35,89 @@ create_admin_view_button()
 # ---------- Styles ----------
 st.markdown("""
 <style>
-body, input, textarea, select {
-    font-family: 'Segoe UI', 'Roboto', sans-serif;
-    background: linear-gradient(to right, #fff0f5, #ffe4e1);
+/* Main app background - dark muted lavender */
+.stApp {
+    background-color: #3a2c3f;
+    color: #f2f2f2; /* Global light text */
 }
+
+/* Sidebar background - slightly lighter tone */
+[data-testid="stSidebar"] {
+    background-color: #4a3b4f;
+    color: #f2f2f2;
+}
+
+/* Force text color everywhere */
+.stMarkdown, .stText, .stDataFrame, .stTable, .stSelectbox, .stButton {
+    color: #f2f2f2 !important;
+}
+
+/* Inputs & textareas */
 div.stTextInput > div > div > input,
 div.stTextArea > div > div > textarea,
 div.stNumberInput > div > div > input {
-    background-color: #FDDDE6;
-    color: #262730;
-    border: 1px solid #FFC0CB;
-    border-radius: 5px;
+    background-color: #5c4a5f;
+    color: #ffffff;
+    border: 1px solid #c49bb4;
+    border-radius: 6px;
     padding: 10px;
-    box_shadow: 0 4px 8px rgba(0, 0, 0, 0.05);
-    transition: all 0.3s ease-in-out;
 }
+
+/* Password input */
 div.stTextInput input[type="password"] {
-    background-color: #FFD9E9;
-    color: #262730;
-    border: 1px solid #FFC0CB;
-    border-radius: 5px;
-    padding: 10px;
-    transition: all 0.3s ease-in-out;
+    background-color: #5c4a5f;
+    color: #ffffff;
+    border: 1px solid #c49bb4;
 }
+
+/* Select box */
 div.stSelectbox > div > label + div {
-    background-color: #FFD9E9;
-    border: 1px solid #FFC0CB;
-    border_radius: 5px;
-    box_shadow: 0 4px 8px rgba(0, 0, 0, 0.05);
-    transition: all 0.3s ease-in-out;
+    background-color: #5c4a5f;
+    color: #ffffff;
+    border: 1px solid #c49bb4;
+    border-radius: 6px;
 }
-div.stSelectbox > div > label + div > div { background-color: #FFD9E9; }
+div.stSelectbox > div > label + div > div {
+    background-color: #5c4a5f;
+    color: #ffffff;
+}
+
+/* Focus state */
 input:focus, textarea:focus, select:focus {
-    border-color: #FF69B4;
-    box_shadow: 0 0 0 0.1rem rgba(255, 105, 180, 0.25);
+    border-color: #ff85a1;
+    box-shadow: 0 0 0 0.15rem rgba(255,133,161,0.3);
     outline: none;
 }
-button[kind="primary"] {
-    background-color: #FFB6C1;
-    color: #262730;
-    border-radius: 6px;
+
+/* Buttons */
+.stButton > button, button[kind="primary"] {
+    background-color: #d46a8c;
+    color: white !important;
+    border-radius: 8px;
     padding: 10px 20px;
-    font-weight: bold;
+    font-weight: 600;
     border: none;
-    transition: all 0.3s ease-in-out;
 }
-button[kind="primary"]:hover {
-    background-color: #FF69B4;
-    box_shadow: 0 0 10px rgba(255, 105, 180, 0.3);
+.stButton > button:hover, button[kind="primary"]:hover {
+    background-color: #b45873;
+}
+
+/* Headers */
+h1, h2, h3, h4, h5 {
+    color: #ffb6c1 !important;
+}
+
+/* Card / panel */
+.block-container {
+    background-color: #2f2433;
+    border-radius: 10px;
+    padding: 12px;
+    color: #f2f2f2;
 }
 </style>
 """, unsafe_allow_html=True)
+
+
 
 st.markdown(
     "<div><p style='text-align:center;'>Answer the question with an audio recording, get it transcribed, and graded.</p></div>",
