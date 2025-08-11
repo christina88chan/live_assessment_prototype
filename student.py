@@ -32,18 +32,13 @@ def create_admin_view_button():
 st.header("Tech4Good Live Assessment Tool")
 create_admin_view_button()
 
-### code copy pasted from Aashna's streamlit demo: ###
-
-# Custom CSS styling
+# ---------- Styles ----------
 st.markdown("""
 <style>
-/* Font and background */
 body, input, textarea, select {
     font-family: 'Segoe UI', 'Roboto', sans-serif;
     background: linear-gradient(to right, #fff0f5, #ffe4e1);
 }
-
-/* General input fields */
 div.stTextInput > div > div > input,
 div.stTextArea > div > div > textarea,
 div.stNumberInput > div > div > input {
@@ -55,8 +50,6 @@ div.stNumberInput > div > div > input {
     box_shadow: 0 4px 8px rgba(0, 0, 0, 0.05);
     transition: all 0.3s ease-in-out;
 }
-
-/* Password field */
 div.stTextInput input[type="password"] {
     background-color: #FFD9E9;
     color: #262730;
@@ -65,8 +58,6 @@ div.stTextInput input[type="password"] {
     padding: 10px;
     transition: all 0.3s ease-in-out;
 }
-
-/* Selectbox styling */
 div.stSelectbox > div > label + div {
     background-color: #FFD9E9;
     border: 1px solid #FFC0CB;
@@ -74,18 +65,12 @@ div.stSelectbox > div > label + div {
     box_shadow: 0 4px 8px rgba(0, 0, 0, 0.05);
     transition: all 0.3s ease-in-out;
 }
-div.stSelectbox > div > label + div > div {
-     background-color: #FFD9E9;
-}
-
-/* Focus effects */
+div.stSelectbox > div > label + div > div { background-color: #FFD9E9; }
 input:focus, textarea:focus, select:focus {
     border-color: #FF69B4;
     box_shadow: 0 0 0 0.1rem rgba(255, 105, 180, 0.25);
     outline: none;
 }
-
-/* Button styling */
 button[kind="primary"] {
     background-color: #FFB6C1;
     color: #262730;
@@ -95,7 +80,6 @@ button[kind="primary"] {
     border: none;
     transition: all 0.3s ease-in-out;
 }
-
 button[kind="primary"]:hover {
     background-color: #FF69B4;
     box_shadow: 0 0 10px rgba(255, 105, 180, 0.3);
@@ -103,17 +87,14 @@ button[kind="primary"]:hover {
 </style>
 """, unsafe_allow_html=True)
 
-# Elegant UI container
-st.markdown("""
-<div>
-    <p style='text-align:center;'>Answer the question with an audio recording, get it transcribed, and graded.</p>
-</div>
-""", unsafe_allow_html=True)
+st.markdown(
+    "<div><p style='text-align:center;'>Answer the question with an audio recording, get it transcribed, and graded.</p></div>",
+    unsafe_allow_html=True
+)
 
-# UI and message
 st.warning("Ensure your audio recordings are clear and the language is primarily English for best results.")
 
-# --- Initialize Session State Variables ---
+# ---------- Session state ----------
 if 'recorded_audio_bytes' not in st.session_state:
     st.session_state.recorded_audio_bytes = None
 if 'edited_transcription_text' not in st.session_state:
@@ -122,27 +103,69 @@ if 'show_editor' not in st.session_state:
     st.session_state.show_editor = False
 if 'grade_feedback' not in st.session_state:
     st.session_state.grade_feedback = None
-# store the grading prompt so submit won't crash if user didn't grade this run
 if 'grading_prompt_text' not in st.session_state:
     st.session_state.grading_prompt_text = ""
+if 'api_key_set' not in st.session_state:
+    st.session_state.api_key_set = ""   # "", "ok", or "error: ..."
+if 'api_key_value' not in st.session_state:
+    st.session_state.api_key_value = ""
+if 'api_key_status' not in st.session_state:
+    st.session_state.api_key_status = ""   # "", "ok", or "error: ..."
 
-# --- Hardcoded Question (fallback) ---
-HARDCODED_QUESTION = """Explain your initial thoughts to the assessment question here"""
+def _uk(base: str) -> str:
+    """Unique widget keys per assignment + user to avoid collisions."""
+    return f"{base}_{st.session_state.get('selected_assignment_id') or 'na'}_{st.session_state.get('visitor_id_input') or 'anon'}"
+
+
+def _submit_answer():
+    if not st.session_state.get("visitor_id_input"):
+        st.warning("Please enter your Name / ID before submitting.")
+        return
+    if not st.session_state.edited_transcription_text.strip():
+        st.warning("Answer content cannot be empty.")
+        return
+    if not st.session_state.get("selected_assignment_id"):
+        st.warning("Please choose an assignment before submitting.")
+        return
+
+    with st.spinner("Saving your response..."):
+        try:
+            payload = {
+                "assignment_id": st.session_state["selected_assignment_id"],
+                "student_name": st.session_state.get("visitor_id_input"),
+                "transcript_text": st.session_state.edited_transcription_text,
+                "grade_overall": None,
+                "grade_json": {"text": st.session_state.grade_feedback} if st.session_state.grade_feedback else None,
+            }
+            data = insert_submission(payload)
+            if data:
+                st.success("Answer submitted and saved to Supabase!")
+            else:
+                st.warning("Submission saved locally, but Supabase didn’t return a row. Check RLS/policies.")
+        except Exception as e:
+            st.error(f"Failed to save to Supabase: {e}")
+
+        # Reset after submit
+        st.session_state.recorded_audio_bytes = None
+        st.session_state.edited_transcription_text = ""
+        st.session_state.show_editor = False
+        st.session_state.grade_feedback = None
+        st.rerun()
+
+
+# ---------- Defaults ----------
+HARDCODED_QUESTION = "Explain your initial thoughts to the assessment question here"
 CURRENT_QUESTION = HARDCODED_QUESTION
 
-# --- Layout Start ---
+# ---------- Layout ----------
 col_left, col_right = st.columns([1, 1])
 
-# --- Left Half ---
+# ----- Left: assignment & question -----
 with col_left:
     st.markdown("### Choose an assignment")
     assignments = fetch_assignments()
     options = [
-        {
-            "id": a["id"],
-            "title": (a.get("title") or "Untitled"),
-            "question": (a.get("question_text") or "")
-        }
+        {"id": a["id"], "title": (a.get("title") or "Untitled"), "question": (a.get("question_text") or "")}
         for a in assignments
     ]
 
@@ -165,86 +188,122 @@ with col_left:
     st.markdown("### Question:")
     st.info(CURRENT_QUESTION)
 
-    st.subheader("Your Gemini API Key")
-    api_key = st.text_input("Enter API Key", type="password", help="Used for transcription only. Not stored")
-
-# --- Right Half ---
+# ----- Right: name, API key, tabs -----
 with col_right:
     visitor_input_id = st.text_input("Name", key="visitor_id_input")
 
-# --- Conditional Display based on API Key ---
-if not api_key:
-    with col_left:
-        st.info("please enter your Gemini API Key to enable recording and transcription.")
-else:
-    # Configure Gemini API
-    try:
-        genai.configure(api_key=api_key)
-        st.success("Gemini API configured!")
-    except Exception as e:
-        st.error(f"Failed to configure Gemini API. Check your API key. Error: {e}")
-        api_key = None  # Invalidate API key for this session if configuration fails
-
-if api_key:  # Only show recording/transcription if API key is valid
-    with col_right:
-        st.subheader("Record Your Answer")
-
-        # Mic Recorder
-        recorded_audio_output = mic_recorder(
-            start_prompt="Click to Start Recording",
-            stop_prompt="Click to Stop Recording",
-            use_container_width=True,
-            key='audio_recorder'
+    # API key UI (collapses after set)
+    if not st.session_state.api_key_set:
+        st.subheader("Gemini API Key")
+        api_key_input = st.text_input(
+            "Enter API Key",
+            type="password",
+            help="Used for transcription only. Not stored.",
+            key="api_key_input"
         )
-
-        if recorded_audio_output and recorded_audio_output.get('bytes'):
-            st.session_state.recorded_audio_bytes = recorded_audio_output['bytes']
-            st.audio(st.session_state.recorded_audio_bytes, format="audio/wav")
-            st.info("Recorded audio ready for transcription.")
-            # Trigger transcription editor after recording
-            st.session_state.show_editor = True
-
-        if st.session_state.show_editor and st.session_state.recorded_audio_bytes:
-            # --- Transcribe Button ---
-            if st.button("transcribe recording", key="transcribe_audio_button"):
-                if not visitor_input_id:
-                    st.warning("Please enter your Name / ID before transcribing.")
+        c_btn, c_msg = st.columns([1, 2])
+        with c_btn:
+            if st.button("Use API Key", key="api_key_submit"):
+                if not api_key_input:
+                    st.session_state.api_key_status = "error: Please paste your Gemini API key."
                 else:
-                    with st.spinner("Transcribing your audio..."):
-                        try:
-                            mime_type = "audio/wav"
-                            audio_io = io.BytesIO(st.session_state.recorded_audio_bytes)
-                            audio_io.name = "recorded_audio.wav"
+                    try:
+                        genai.configure(api_key=api_key_input)
+                        st.session_state.api_key_set = True
+                        st.session_state.api_key_value = api_key_input
+                        st.session_state.api_key_status = "ok"
+                    except Exception as e:
+                        st.session_state.api_key_status(f"error: Failed to configure Gemini API. Check your key. Error: {e}")
+        with c_msg:
+            status = st.session_state.get("api_key_status", "")
+            if status == "ok":
+                st.success("Gemini API configured!")
+            elif status.startswith("error:"):
+                st.error(status.replace("error: ", ""))
 
-                            audio_file = genai.upload_file(
-                                path=audio_io,  # keeping your original approach
-                                mime_type=mime_type,
-                                display_name=f"Answer_from_{visitor_input_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-                            )
+    else:
+        # configured state
+        c_label, c_change = st.columns([2, 1])
+        with c_label:
+            st.success("Gemini API configured.")
+        with c_change:
+            if st.button("Change API Key", key="api_key_change"):
+                st.session_state.api_key_set = False
+                st.session_state.api_key_value = ""
+                st.session_state.api_key_status = ""
+                st.rerun()
 
-                            while audio_file.state.name == "PROCESSING":
-                                st.info("File is still processing on Gemini's side...")
-                                import time
-                                time.sleep(1)
-                                audio_file = genai.get_file(audio_file.name)
+    st.subheader("Record & Grade")
 
-                            prompt = "Transcribe the given audio accurately. Provide only the spoken text."
-                            model = genai.GenerativeModel('models/gemini-1.5-flash-latest')  # Ensure model is available
-                            response = model.generate_content([audio_file, prompt])
-                            st.session_state.edited_transcription_text = response.text
+    if not st.session_state.api_key_set:
+        st.info("Please enter your Gemini API Key to enable recording and transcription.")
+    else:
+        # Ensure configured with saved key
+        try:
+            genai.configure(api_key=st.session_state.api_key_value)
+        except Exception as e:
+            st.error(f"Failed to configure Gemini API. Error: {e}")
+            st.stop()
 
-                            st.success("Transcription complete! You can now edit it.")
+        # Tabs (single recorder instance lives in tab_record)
+        tab_record, tab_review = st.tabs(["Record & Transcribe", "Review & Grade"])
 
-                        except GoogleAPIError as api_err:
-                            st.error(f"Gemini API Error: {api_err.message}")
-                            st.info("Please check your API key validity, ensure billing is enabled, or audio is not too long.")
-                            st.exception(api_err)
-                        except Exception as e:
-                            st.error(f"An unexpected error occurred during transcription: {e}")
-                            st.info("Ensure the audio recording was successful.")
-                            st.exception(e)
+        with tab_record:
+            recorded_audio_output = mic_recorder(
+                start_prompt="Click to Start Recording",
+                stop_prompt="Click to Stop Recording",
+                use_container_width=True,
+                key=_uk('audio_recorder')
+            )
 
-            # --- Transcription Editor ---
+            if recorded_audio_output and recorded_audio_output.get('bytes'):
+                st.session_state.recorded_audio_bytes = recorded_audio_output['bytes']
+                st.audio(st.session_state.recorded_audio_bytes, format="audio/wav")
+                st.info("Recorded audio ready for transcription.")
+                st.session_state.show_editor = True
+
+            if st.session_state.show_editor and st.session_state.recorded_audio_bytes:
+                if st.button("Transcribe Recording", key=_uk("transcribe_audio_button")):
+                    if not visitor_input_id:
+                        st.warning("Please enter your Name / ID before transcribing.")
+                    else:
+                        with st.spinner("Transcribing your audio..."):
+                            try:
+                                mime_type = "audio/wav"
+                                audio_io = io.BytesIO(st.session_state.recorded_audio_bytes)
+                                audio_io.name = "recorded_audio.wav"
+
+                                audio_file = genai.upload_file(
+                                    path=audio_io,
+                                    mime_type=mime_type,
+                                    display_name=f"Answer_from_{visitor_input_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+                                )
+
+                                # poll until processed
+                                while getattr(audio_file, "state", None) and getattr(audio_file.state, "name", "") == "PROCESSING":
+                                    st.info("File is still processing on Gemini's side...")
+                                    import time
+                                    time.sleep(1)
+                                    audio_file = genai.get_file(audio_file.name)
+
+                                prompt = "Transcribe the given audio accurately. Provide only the spoken text."
+                                model = genai.GenerativeModel('models/gemini-1.5-flash-latest')
+                                response = model.generate_content([audio_file, prompt])
+                                st.session_state.edited_transcription_text = response.text or ""
+
+                                st.success("Transcription complete! Switch to the 'Review & Grade' tab to edit and grade.")
+
+                            except GoogleAPIError as api_err:
+                                st.error(f"Gemini API Error: {api_err.message}")
+                                st.info("Please check your API key validity, ensure billing is enabled, or audio is not too long.")
+                                st.exception(api_err)
+                            except Exception as e:
+                                st.error(f"An unexpected error occurred during transcription: {e}")
+                                st.info("Ensure the audio recording was successful.")
+                                st.exception(e)
+
+        with tab_review:
+            # Editor + Grade
             if st.session_state.edited_transcription_text:
                 st.subheader("Review and Edit Your Answer:")
                 st.session_state.edited_transcription_text = st.text_area(
@@ -254,18 +313,16 @@ if api_key:  # Only show recording/transcription if API key is valid
                     key="transcription_editor"
                 )
 
-                # --- Grade Button ---
-                if st.button("grade response", key="grade_response_button"):
+                if st.button("Grade Response", key=_uk("grade_response_button")):
                     if not st.session_state.edited_transcription_text.strip():
                         st.warning("Transcription is empty. Record and transcribe your audio first.")
                     else:
                         with st.spinner("Getting evaluation from Gemini..."):
                             try:
-                                # Use Gemini to grade the response based on the prompt and transcription
                                 grading_model = genai.GenerativeModel('models/gemini-1.5-flash-latest')
                                 student_submission = st.session_state.edited_transcription_text
 
-                                ### Evaluation Prompt ###
+                                # ---- Prompt build  ----
                                 course_name = "Generative AI Skill-Building"
                                 course_goals = "to learn how to use and evaluate AI models"
                                 key_concepts = "Prompt Engineering, Prompt Workflow, Evaluation Metrics"
@@ -294,8 +351,7 @@ if api_key:  # Only show recording/transcription if API key is valid
                                 model_instructions = ''' Your task is to take these intial student reflections on how they plan to tackle the problem and assess their understanding of key concepts given in the rubric below: '''
 
                                 rubric_json = {
-                                    "Prompt Engineering" : {
-                                        "Description" : "utilizes clear instructions, examples, formatting requirements and other best practices to design effective prompts.",
+                                    "Prompt Engineering" : {"Description" : "utilizes clear instructions, examples, formatting requirements and other best practices to design effective prompts.",
                                         "Grades" : {
                                             "Missing (0%)": "No prompts are designed.",
                                             "Major Misconceptions (50%)": "Prompts poorly designed with short or unclear instructions. no formatting requirements and no or few examples and step-by-step guidance",
@@ -304,8 +360,7 @@ if api_key:  # Only show recording/transcription if API key is valid
                                             "Mastery (102%)": "Prompts exceptionally well-designed with clear instructions, highly relevant and illustrative examples, and comprehensive step-by-step guidance for the task and format"
                                         }
                                     },
-                                    "Prompt Workflow Breakdown" : {
-                                        "Description" : "demonstrates clear step-by-step thinking to effectively breakdown into a series of prompts.",
+                                    "Prompt Workflow Breakdown" : {"Description" : "demonstrates clear step-by-step thinking to effectively breakdown into a series of prompts.",
                                         "Grades" : {
                                             "Missing (0%)": "Problem Solution not broken down into series of steps and prompts",
                                             "Major Misconceptions (50%)": "Prompt breakdown poorly designed with very few or irrelevant steps",
@@ -314,8 +369,7 @@ if api_key:  # Only show recording/transcription if API key is valid
                                             "Mastery (102%)": "Prompt Workflow exceptionally well-designed with clear instructions and comprehensive step-by-step breakdown"
                                         }
                                     },
-                                    "Evaluation Metrics" : {
-                                        "Description" : "defines metrics that are well-defined and relevant to the problem",
+                                    "Evaluation Metrics" : {"Description" : "defines metrics that are well-defined and relevant to the problem",
                                         "Grades" : {
                                             "Missing (0%)": "No metrics are defined.",
                                             "Major Misconceptions (50%)": "Not enough metrics designed or metrics may not be applicable to the problem context",
@@ -328,7 +382,7 @@ if api_key:  # Only show recording/transcription if API key is valid
 
                                 rubric_instructions = f'''For each of the three key concepts in the rubric: {key_concepts}, assign the student one of the Grades between Missing, Major Miconceptions, Nearly Proficient, Proficient, Mastery based on their understanding. Ensure the grades directly reflects the sum of the strengths and weaknesses identified in the critiques.'''
 
-                                expected_output_format = f'''
+                                expected_output_format = '''
                                 Assessment Scores:
 
                                 Concept: [Concept Name]
@@ -344,9 +398,7 @@ if api_key:  # Only show recording/transcription if API key is valid
                                 Reasoning: [Rationale for score]
                                 '''
 
-                                expected_output_examples = f'''
-                                (Examples omitted here for brevity — keeping your original structure)
-                                '''
+                                expected_output_examples = '(Examples omitted here for brevity — keeping your original structure)'
 
                                 master_prompt = f'''
                                 Purpose: {purpose}
@@ -373,31 +425,28 @@ if api_key:  # Only show recording/transcription if API key is valid
                                 Student Submission:
                                 This is one students submissions: {student_submission}
                                 '''
-                                ### End of Evaluation Prompt ###
 
-                                # Save prompt to session so submit won't crash if user doesn't grade next run
                                 st.session_state.grading_prompt_text = master_prompt
-
-                                grading_prompt_formatted = master_prompt
-                                grading_response = grading_model.generate_content(grading_prompt_formatted)
+                                grading_response = grading_model.generate_content(master_prompt)
                                 st.session_state.grade_feedback = grading_response.text
                                 st.success("Evaluation complete!")
-
                             except GoogleAPIError as api_err:
                                 st.error(f"Gemini API Error during grading: {api_err.message}")
                                 st.exception(api_err)
                             except Exception as e:
                                 st.error(f"An unexpected error occurred during grading: {e}")
                                 st.exception(e)
+            else:
+                st.info("No transcription yet. Use the 'Record & Transcribe' tab first.")
 
-# --- Display Grade Feedback ---
+# ---------- Grade feedback ----------
 if st.session_state.grade_feedback:
     st.subheader("Gemini Evaluation:")
     st.info(st.session_state.grade_feedback)
 
-# --- Submit Answer (save to Supabase) ---
-if st.button("submit answer", key="save_message_button"):
-    if not visitor_input_id:
+# ---------- Submit to Supabase ----------
+if st.button("submit answer", key=_uk("save_message_button")):
+    if not st.session_state.get("visitor_id_input"):
         st.warning("Please enter your Name / ID before submitting.")
     elif not st.session_state.edited_transcription_text.strip():
         st.warning("Answer content cannot be empty.")
@@ -405,28 +454,25 @@ if st.button("submit answer", key="save_message_button"):
         st.warning("Please choose an assignment before submitting.")
     else:
         with st.spinner("Saving your response..."):
-            # Define a unique filename for the saved message (not used yet, kept for parity)
-            save_filename = f"answer_from_{visitor_input_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.wav"
+            save_filename = f"answer_from_{st.session_state.get('visitor_id_input')}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.wav"
 
             message_metadata = {
                 "source_app": "Streamlit Text-based Grading",
                 "gemini_model": "1.5-flash-latest",
                 "original_audio_length_bytes": len(st.session_state.recorded_audio_bytes) if st.session_state.recorded_audio_bytes else 0,
-                "question": CURRENT_QUESTION,  # use the selected question
+                "question": CURRENT_QUESTION,
                 "assignment_id": st.session_state.get("selected_assignment_id"),
                 "grading_prompt": st.session_state.get("grading_prompt_text", ""),
                 "grade_feedback": st.session_state.grade_feedback
             }
 
-            # Save to Supabase
             try:
                 payload = {
-                    "assignment_id": st.session_state["selected_assignment_id"],  # non-None now
-                    "student_name": visitor_input_id,
+                    "assignment_id": st.session_state["selected_assignment_id"],
+                    "student_name": st.session_state.get("visitor_id_input"),
                     "transcript_text": st.session_state.edited_transcription_text,
-                    "grade_overall": None,  # set if you compute a numeric score
+                    "grade_overall": None,
                     "grade_json": {"text": st.session_state.grade_feedback} if st.session_state.grade_feedback else None,
-                    # created_at is filled by DB default
                 }
                 data = insert_submission(payload)
                 if data:
@@ -436,13 +482,13 @@ if st.button("submit answer", key="save_message_button"):
             except Exception as e:
                 st.error(f"Failed to save to Supabase: {e}")
 
-            # Reset for next message
+            # Reset after submit
             st.session_state.recorded_audio_bytes = None
             st.session_state.edited_transcription_text = ""
             st.session_state.show_editor = False
             st.session_state.grade_feedback = None
             st.rerun()
 
-# Fallback hint if nothing recorded yet
+# ---------- Fallback hint ----------
 if not st.session_state.recorded_audio_bytes:
-    st.info("record your audio answer to begin transcription!")
+    st.info("Use the 'Record & Transcribe' tab to get started.")
