@@ -20,7 +20,7 @@ def fetch_assignments():
     try:
         return list_assignments()
     except Exception as e:
-        st.error(f"Couldn’t load assignments from Supabase: {e}")
+        st.error(f"Couldnâ€™t load assignments from Supabase: {e}")
         return []
 
 
@@ -137,7 +137,7 @@ h1 {
 
 
 st.markdown(
-    "<div><p style='text-align:center;'>Answer the question with an audio recording, get it transcribed, and graded.</p></div>",
+    "<div><p style='text-align:center;'>Answer the question with an audio recording, get it transcribed, write your final prompt, and get it graded.</p></div>",
     unsafe_allow_html=True
 )
 
@@ -148,6 +148,8 @@ if 'recorded_audio_bytes' not in st.session_state:
     st.session_state.recorded_audio_bytes = None
 if 'edited_transcription_text' not in st.session_state:
     st.session_state.edited_transcription_text = ""
+if 'student_prompt_text' not in st.session_state:
+    st.session_state.student_prompt_text = ""
 if 'show_editor' not in st.session_state:
     st.session_state.show_editor = False
 if 'grade_feedback' not in st.session_state:
@@ -170,8 +172,8 @@ def _submit_answer():
     if not st.session_state.get("visitor_id_input"):
         st.warning("Please enter your Name / ID before submitting.")
         return
-    if not st.session_state.edited_transcription_text.strip():
-        st.warning("Answer content cannot be empty.")
+    if not st.session_state.student_prompt_text.strip():
+        st.warning("Final prompt cannot be empty.")
         return
     if not st.session_state.get("selected_assignment_id"):
         st.warning("Please choose an assignment before submitting.")
@@ -183,6 +185,7 @@ def _submit_answer():
                 "assignment_id": st.session_state["selected_assignment_id"],
                 "student_name": st.session_state.get("visitor_id_input"),
                 "transcript_text": st.session_state.edited_transcription_text,
+                "student_prompt": st.session_state.student_prompt_text,
                 "grade_overall": None,
                 "grade_json": {"text": st.session_state.grade_feedback} if st.session_state.grade_feedback else None,
             }
@@ -190,13 +193,14 @@ def _submit_answer():
             if data:
                 st.success("Answer submitted and saved to Supabase!")
             else:
-                st.warning("Submission saved locally, but Supabase didn’t return a row. Check RLS/policies.")
+                st.warning("Submission saved locally, but Supabase didnâ€™t return a row. Check RLS/policies.")
         except Exception as e:
             st.error(f"Failed to save to Supabase: {e}")
 
         # Reset after submit
         st.session_state.recorded_audio_bytes = None
         st.session_state.edited_transcription_text = ""
+        st.session_state.student_prompt_text = ""
         st.session_state.show_editor = False
         st.session_state.grade_feedback = None
         st.rerun()
@@ -295,7 +299,7 @@ with col_right:
             st.stop()
 
         # Tabs (single recorder instance lives in tab_record)
-        tab_record, tab_review = st.tabs(["Record & Transcribe", "Review & Grade"])
+        tab_record, tab_review, tab_prompt = st.tabs(["Record & Transcribe", "Review Thoughts", "Final Prompt & Grade"])
 
         with tab_record:
             recorded_audio_output = mic_recorder(
@@ -340,7 +344,7 @@ with col_right:
                                 response = model.generate_content([audio_file, prompt])
                                 st.session_state.edited_transcription_text = response.text or ""
 
-                                st.success("Transcription complete! Switch to the 'Review & Grade' tab to edit and grade.")
+                                st.success("Transcription complete! Switch to the 'Review Thoughts' tab to edit your thoughts, then to 'Final Prompt & Grade' to enter your final submission.")
 
                             except GoogleAPIError as api_err:
                                 st.error(f"Gemini API Error: {api_err.message}")
@@ -350,73 +354,48 @@ with col_right:
                                 st.error(f"An unexpected error occurred during transcription: {e}")
                                 st.info("Ensure the audio recording was successful.")
                                 st.exception(e)
-            # Inside tab_record, right under the recorder
-            if st.button("Submit Answer", key=_uk("save_message_button")):
-                if not st.session_state.get("visitor_id_input"):
-                    st.warning("Please enter your Name / ID before submitting.")
-                elif not st.session_state.edited_transcription_text.strip():
-                    st.warning("Answer content cannot be empty.")
-                elif not st.session_state.get("selected_assignment_id"):
-                    st.warning("Please choose an assignment before submitting.")
-                else:
-                    with st.spinner("Saving your response..."):
-                        save_filename = f"answer_from_{st.session_state.get('visitor_id_input')}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.wav"
-
-                        message_metadata = {
-                            "source_app": "Streamlit Text-based Grading",
-                            "gemini_model": "1.5-flash-latest",
-                            "original_audio_length_bytes": len(st.session_state.recorded_audio_bytes) if st.session_state.recorded_audio_bytes else 0,
-                            "question": CURRENT_QUESTION,
-                            "assignment_id": st.session_state.get("selected_assignment_id"),
-                            "grading_prompt": st.session_state.get("grading_prompt_text", ""),
-                            "grade_feedback": st.session_state.grade_feedback
-                        }
-
-                        try:
-                            payload = {
-                                "assignment_id": st.session_state["selected_assignment_id"],
-                                "student_name": st.session_state.get("visitor_id_input"),
-                                "transcript_text": st.session_state.edited_transcription_text,
-                                "grade_overall": None,
-                                "grade_json": {"text": st.session_state.grade_feedback} if st.session_state.grade_feedback else None,
-                            }
-                            data = insert_submission(payload)
-                            if data:
-                                st.success("Answer submitted and saved to Supabase!")
-                            else:
-                                st.warning("Submission saved locally, but Supabase didn’t return a row. Check RLS/policies.")
-                        except Exception as e:
-                            st.error(f"Failed to save to Supabase: {e}")
-
-            # Reset after submit
-                        st.session_state.recorded_audio_bytes = None
-                        st.session_state.edited_transcription_text = ""
-                        st.session_state.show_editor = False
-                        st.session_state.grade_feedback = None
-                        st.rerun()
-
-
-                            
 
         with tab_review:
-            # Editor + Grade
+            # Editor for transcription (thoughts)
             if st.session_state.edited_transcription_text:
-                st.subheader("Review and Edit Your Answer:")
+                st.subheader("Review and Edit Your Thoughts:")
+                st.info("This section captures your initial thoughts and reasoning process. Edit as needed.")
                 st.session_state.edited_transcription_text = st.text_area(
-                    "Edit your transcribed answer here:",
+                    "Edit your transcribed thoughts here:",
                     value=st.session_state.edited_transcription_text,
                     height=200,
                     key="transcription_editor"
                 )
+            else:
+                st.info("No transcription yet. Use the 'Record & Transcribe' tab first to record your initial thoughts.")
 
+        with tab_prompt:
+            # Student's final prompt input
+            st.subheader("Enter Your Final Prompt:")
+            st.info("Based on your thoughts and analysis, write your final prompt or solution here. This is what will be primarily evaluated.")
+            
+            st.session_state.student_prompt_text = st.text_area(
+                "Your final prompt/solution:",
+                value=st.session_state.student_prompt_text,
+                height=250,
+                placeholder="Enter your final prompt or solution here...",
+                key="student_prompt_editor"
+            )
+
+            # Grade button and submit button
+            col_grade, col_submit = st.columns(2)
+            
+            with col_grade:
                 if st.button("Grade Response", key=_uk("grade_response_button")):
-                    if not st.session_state.edited_transcription_text.strip():
-                        st.warning("Transcription is empty. Record and transcribe your audio first.")
+                    if not st.session_state.student_prompt_text.strip():
+                        st.warning("Final prompt is empty. Please enter your final prompt first.")
                     else:
                         with st.spinner("Getting evaluation from Gemini..."):
                             try:
                                 grading_model = genai.GenerativeModel('models/gemini-1.5-flash-latest')
-                                student_submission = st.session_state.edited_transcription_text
+                                
+                                student_thoughts = st.session_state.edited_transcription_text
+                                student_final_prompt = st.session_state.student_prompt_text
 
                                 # ---- Prompt build  ----
                                 course_name = "Generative AI Skill-Building"
@@ -434,17 +413,17 @@ with col_right:
                                 '''
 
                                 assessment_reflection_instructions = '''The student reflections should cover the following:
-                                • a brief outline of initial thoughts about how they might break down the task,
-                                • discussion of how they created and intiial prompt how they plan to iterate on it next based on results,
-                                • initial thoughts on evaluation metrics they will use to evaluate results of their prompts.'''
+                                â€¢ a brief outline of initial thoughts about how they might break down the task,
+                                â€¢ discussion of how they created and initial prompt how they plan to iterate on it next based on results,
+                                â€¢ initial thoughts on evaluation metrics they will use to evaluate results of their prompts.'''
 
-                                purpose = f'''You are a Teaching Assistant and you will be evaluating student reflections based on a given rubric. Students are taking part in a {course_name} course to {course_goals}. This includes learning the key concepts of {key_concepts} if a students submission does not include anything to grade (empty submission) then provide 0s for all the concepts and say missing submission for the reasoning since every student still requires a grade.'''
+                                purpose = f'''You are a Teaching Assistant and you will be evaluating student submissions based on a given rubric. Students are taking part in a {course_name} course to {course_goals}. This includes learning the key concepts of {key_concepts}. If a students submission does not include anything to grade (empty submission) then provide 0s for all the concepts and say missing submission for the reasoning since every student still requires a grade.'''
 
                                 assessment_details = f'''Students were given an assessment where they had to solve a complex problem to test their understanding of {key_concepts}.
-                                Before the students started working on the problem, they were required to submit an initial reflection on how they plan to tackle the problem to assess their understandings of the key concepts of the course.
+                                Students were required to submit both their initial thoughts/reflections on how they plan to tackle the problem AND their final prompt/solution.
                                 {assessment_reflection_instructions}'''
 
-                                model_instructions = ''' Your task is to take these intial student reflections on how they plan to tackle the problem and assess their understanding of key concepts given in the rubric below: '''
+                                model_instructions = ''' Your task is to evaluate both the student's initial thoughts/reflections AND their final prompt/solution to assess their understanding of key concepts given in the rubric below. Consider both components when grading: '''
 
                                 rubric_json = {
                                     "Prompt Engineering" : {"Description" : "utilizes clear instructions, examples, formatting requirements and other best practices to design effective prompts.",
@@ -494,7 +473,7 @@ with col_right:
                                 Reasoning: [Rationale for score]
                                 '''
 
-                                expected_output_examples = '(Examples omitted here for brevity — keeping your original structure)'
+                                expected_output_examples = '(Examples omitted here for brevity â€" keeping your original structure)'
 
                                 master_prompt = f'''
                                 Purpose: {purpose}
@@ -519,7 +498,12 @@ with col_right:
                                 {expected_output_examples}
 
                                 Student Submission:
-                                This is one students submissions: {student_submission}
+                                
+                                STUDENT'S INITIAL THOUGHTS/REFLECTIONS:
+                                {student_thoughts}
+
+                                STUDENT'S FINAL PROMPT/SOLUTION:
+                                {student_final_prompt}
                                 '''
 
                                 st.session_state.grading_prompt_text = master_prompt
@@ -532,15 +516,47 @@ with col_right:
                             except Exception as e:
                                 st.error(f"An unexpected error occurred during grading: {e}")
                                 st.exception(e)
-            else:
-                st.info("No transcription yet. Use the 'Record & Transcribe' tab first.")
+
+            with col_submit:
+                if st.button("Submit Answer", key=_uk("save_message_button")):
+                    if not st.session_state.get("visitor_id_input"):
+                        st.warning("Please enter your Name / ID before submitting.")
+                    elif not st.session_state.student_prompt_text.strip():
+                        st.warning("Final prompt cannot be empty.")
+                    elif not st.session_state.get("selected_assignment_id"):
+                        st.warning("Please choose an assignment before submitting.")
+                    else:
+                        with st.spinner("Saving your response..."):
+                            try:
+                                payload = {
+                                    "assignment_id": st.session_state["selected_assignment_id"],
+                                    "student_name": st.session_state.get("visitor_id_input"),
+                                    "transcript_text": st.session_state.edited_transcription_text,
+                                    "student_prompt": st.session_state.student_prompt_text,
+                                    "grade_overall": None,
+                                    "grade_json": {"text": st.session_state.grade_feedback} if st.session_state.grade_feedback else None,
+                                }
+                                data = insert_submission(payload)
+                                if data:
+                                    st.success("Answer submitted and saved to Supabase!")
+                                else:
+                                    st.warning("Submission saved locally, but Supabase didnâ€™t return a row. Check RLS/policies.")
+                            except Exception as e:
+                                st.error(f"Failed to save to Supabase: {e}")
+
+                            # Reset after submit
+                            st.session_state.recorded_audio_bytes = None
+                            st.session_state.edited_transcription_text = ""
+                            st.session_state.student_prompt_text = ""
+                            st.session_state.show_editor = False
+                            st.session_state.grade_feedback = None
+                            st.rerun()
 
 # ---------- Grade feedback ----------
 if st.session_state.grade_feedback:
     st.subheader("Gemini Evaluation:")
     st.info(st.session_state.grade_feedback)
 
-
 # ---------- Fallback hint ----------
-if not st.session_state.recorded_audio_bytes:
-    st.info("Use the 'Record & Transcribe' tab to get started.")
+if not st.session_state.recorded_audio_bytes and not st.session_state.student_prompt_text:
+    st.info("Use the 'Record & Transcribe' tab to record your initial thoughts, then move to 'Final Prompt & Grade' to enter your final submission.")
