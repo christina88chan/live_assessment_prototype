@@ -23,14 +23,13 @@ def fetch_assignments():
         st.error(f"Couldn’t load assignments from Supabase: {e}")
         return []
 
-def create_admin_view_button():
-    col1, col2, col3 = st.columns([1, 1, 1])
-    with col3:
-        if st.button("Admin Login"):
-            st.switch_page("pages/auth.py")
 
-st.header("Tech4Good Live Assessment Tool")
-create_admin_view_button()
+header_col, admin_col = st.columns ([8, 1])
+with header_col: 
+    st.header("Tech4Good Live Assessment Tool")
+with admin_col:
+    if st.button("Admin Login"):
+        st.switch_page("pages/auth.py")
 
 # ---------- Styles ----------
 st.markdown("""
