@@ -147,12 +147,6 @@ if 'grade_feedback' not in st.session_state:
     st.session_state.grade_feedback = None
 if 'grading_prompt_text' not in st.session_state:
     st.session_state.grading_prompt_text = ""
-if 'api_key_set' not in st.session_state:
-    st.session_state.api_key_set = ""   # "", "ok", or "error: ..."
-if 'api_key_value' not in st.session_state:
-    st.session_state.api_key_value = ""
-if 'api_key_status' not in st.session_state:
-    st.session_state.api_key_status = ""   # "", "ok", or "error: ..."
 
 def _uk(base: str) -> str:
     """Unique widget keys per assignment + user to avoid collisions."""
@@ -205,10 +199,19 @@ options = [
 
 
 # ---------- Layout ----------
-col_left, col_mid, col_right = st.columns([2, 0.5, 3])
+col_left, col_right = st.columns([3, 3])
 
 # ----- Left: assignment & question -----
-#with col_left:
+with col_left:
+    st.subheader("1. Read the Assessment Document")
+
+    google_doc_url = "https://docs.google.com/document/d/1NZ5R_MOlGGjB58Ynw7AtfwR7lsapZGhP6Dux7JwHnVQ/edit?usp=sharing"
+    
+    # Embed the Google Doc in an iframe
+    st.markdown(f"""
+    <iframe src="{google_doc_url}" width="100%" height="700px" frameborder="0">
+    </iframe>
+    """, unsafe_allow_html=True)
     
 
 
