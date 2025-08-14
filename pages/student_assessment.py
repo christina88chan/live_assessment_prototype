@@ -463,12 +463,8 @@ with col_right:
 
     with col_submit:
         if st.button("Submit Answer", key=_uk("save_message_button")):
-            if not st.session_state.get("visitor_id_input"):
-                st.warning("Please enter your Name / ID before submitting.")
-            elif not st.session_state.student_prompt_text.strip():
+            if not st.session_state.student_prompt_text.strip():
                 st.warning("Final prompt cannot be empty.")
-            elif not st.session_state.get("selected_assignment_id"):
-                st.warning("Please choose an assignment before submitting.")
             else:
                  with st.spinner("Saving your response..."):
                     try:
