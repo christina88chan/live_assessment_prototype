@@ -35,23 +35,13 @@ with admin_col:
 st.markdown("""
 <style>
 
-/* Main app background - dark muted lavender */
-.stApp {
-    background-color: #3a2c3f;
-    color: #f2f2f2; /* Global light text */
-}
-
-/* Sidebar background - slightly lighter tone */
-[data-testid="stSidebar"] {
-    background-color: #4a3b4f;
-    color: #f2f2f2;
-}
-
-/* Force text color everywhere */
-.stMarkdown, .stText, .stDataFrame, .stTable, .stSelectbox, .stButton {
-    color: #f2f2f2 !important;
-}
-
+/* Make sure the content inside columns stretches */
+    .block-container {
+        flex: 1;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+    }
 /* Inputs & textareas */
 div.stTextInput > div > div > input,
 div.stTextArea > div > div > textarea,
@@ -62,33 +52,12 @@ div.stNumberInput > div > div > input {
     border-radius: 6px;
     padding: 10px;
 }
-
 /* Password input */
 div.stTextInput input[type="password"] {
     background-color: #5c4a5f;
     color: #ffffff;
     border: 1px solid #c49bb4;
 }
-
-/* Select box */
-div.stSelectbox > div > label + div {
-    background-color: #5c4a5f;
-    color: #ffffff;
-    border: 1px solid #c49bb4;
-    border-radius: 6px;
-}
-div.stSelectbox > div > label + div > div {
-    background-color: #5c4a5f;
-    color: #ffffff;
-}
-
-/* Focus state */
-input:focus, textarea:focus, select:focus {
-    border-color: #ff85a1;
-    box-shadow: 0 0 0 0.15rem rgba(255,133,161,0.3);
-    outline: none;
-}
-
 /* Buttons */
 .stButton > button, button[kind="primary"] {
     background-color: #d46a8c;
@@ -114,27 +83,15 @@ h1, h2, h3, h4, h5 {
     padding: 12px;
     color: #f2f2f2;
 }
+ 
 /* Make Streamlit's top header transparent so it doesn't look like a black bar */
 [data-testid="stHeader"] {
   background: transparent !important;
   backdrop-filter: none !important;
   border-bottom: none !important;
 }
-/* Nudge the main content down a touch so the title isn't cramped */
-.block-container {
-  padding-top: 1.5rem !important;
-}
-/* Ensure your main header is readable on the dark background */
-h1 {
-  color: #ffe3ea !important;  /* light pastel */
-  margin-top: 0 !important;
-}g
-/* Make columns breathe */
-[data-testid="stVerticalBlock"] {
-  gap: 1rem !important;
 </style>
 """, unsafe_allow_html=True)
-
 
 
 
@@ -201,7 +158,7 @@ def _submit_answer():
         st.rerun()
 
 # ---------- Layout ----------
-col_left, col_mid, col_right = st.columns([2, 1, 3])
+col_left, col_mid, col_right = st.columns([2, .2, 3])
 
 # ----- Left: assignment & question -----
 with col_left:
@@ -263,15 +220,16 @@ if st.button("Click to begin"):
 
 # ----- Right: name, API key, tabs -----
 with col_right:
-    st.subheader("Welcome to your assessment")
-    st.markdown("""
-        Once you have logged in, a timer will begin and you will have **1 hour** to complete this assessment. 
-        You will have the opportunity to read over the assessment and record your response using a microphone. 
-        Once **submit** is pressed, the assignment will be evaluated and sent to the instructor.
-    """)
-    st.markdown('</div>', unsafe_allow_html=True)
-    st.markdown('</div>', unsafe_allow_html=True)
+    st.markdown("<h2 style='text-align: center;'>Welcome to your assessment</h2>", unsafe_allow_html=True)
 
+    st.markdown("""
+        <div style="text-align: center; font-size: 24px;">
+            Once you have logged in, a timer will begin and you will have 1 hour to complete this assessment. 
+            You will have the opportunity to read over the assessment and record your response using a microphone. 
+            Once submit is pressed, the assignment will be evaluated and sent to the instructor.
+        </div>
+    """, unsafe_allow_html=True)
+    
 
 
       
