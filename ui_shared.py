@@ -22,4 +22,4 @@ def student_top_button():
     col1, col2, col3 = st.columns([1, 1, 1])
     with col3:
         if st.button("Go to Student View", key="btn_student_view_top"):
-            st.switch_page("student.py")
+            st.switch_page("student_login_.py")

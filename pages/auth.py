@@ -6,7 +6,7 @@ if "user_email" in st.session_state and st.session_state.user_email:
 
 def auth_screen():
     if st.button("← Back to Student Login"):
-        st.switch_page("student.py")
+        st.switch_page("student_login_.py")
     
     st.title("🔐 Admin Login")
     st.markdown("""

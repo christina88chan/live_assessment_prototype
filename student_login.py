@@ -154,7 +154,8 @@ if st.button("Click to begin"):
         st.session_state.last_name = last_name
         st.session_state.api_key = api_key
         st.session_state.api_key_set = True  # API key is set
-        st.experimental_rerun()
+        st.switch_page("pages/student_assessment.py")
+        
     else:
         st.warning("Please fill in all fields and check the affirmation.")
 
