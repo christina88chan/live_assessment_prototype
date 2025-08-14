@@ -220,15 +220,19 @@ if st.button("Click to begin"):
 
 # ----- Right: name, API key, tabs -----
 with col_right:
-    st.markdown("<h2 style='text-align: center;'>Welcome to your assessment</h2>", unsafe_allow_html=True)
+    with st.container(border=True):
+        st.markdown("<h2 style='text-align: center;'>Welcome to your assessment</h2>", unsafe_allow_html=True)
 
-    st.markdown("""
-        <div style="text-align: center; font-size: 24px;">
-            Once you have logged in, a timer will begin and you will have 1 hour to complete this assessment. 
+        st.markdown("""
+            <div style="text-align: center; font-size: 24px;">
+            Once you have logged in, you will have 1 hour to complete this assessment. 
             You will have the opportunity to read over the assessment and record your response using a microphone. 
-            Once submit is pressed, the assignment will be evaluated and sent to the instructor.
-        </div>
-    """, unsafe_allow_html=True)
+            After you evaluate your response and click submit, the assignment will be evaluated and sent to the instructor.
+            </div>
+        """, unsafe_allow_html=True)
+
+        st.text("")
+        st.text("")
     
 
 
