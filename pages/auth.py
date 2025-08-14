@@ -12,16 +12,24 @@ def auth_screen():
     st.markdown("""
     Welcome to the Admin Portal.  
     Please choose **Sign Up** if you're a new user, or **Login** if you already have an account.
-
-    ### Sign Up Instructions:
-    - Enter your email and a secure password.
-    - After signing up, check your email inbox for a verification link from Supabase.
-    - Once verified, return here and log in using your credentials.
-
-    ### Login Instructions:
-    - Enter the email and password you used during sign-up.
-    - If you haven't verified your email yet, login may fail until you do.
     """)
+
+    login, signup = st.columns([1, 1])
+    with login:
+        st.markdown("""
+        ### Login Instructions:
+        - Enter the email and password you used during sign-up.
+        - If you haven't verified your email yet, login may fail until you do.
+        """)
+
+    with signup:
+        st.markdown("""
+        ### Sign Up Instructions:
+        - Enter your email and a secure password.
+        - After signing up, check your email inbox for a verification link from Supabase.
+        - Once verified, return here and log in using your credentials.
+        """)
+
     option = st.selectbox("Choose an action:", ["Login", "Sign Up"])
     email = st.text_input("Email")
     password = st.text_input("Password", type="password")

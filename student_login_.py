@@ -221,6 +221,7 @@ if st.button("Click to begin"):
 # ----- Right: name, API key, tabs -----
 with col_right:
     with st.container(border=True):
+        st.header("")
         st.markdown("<h2 style='text-align: center;'>Welcome to your assessment</h2>", unsafe_allow_html=True)
 
         st.markdown("""
@@ -233,6 +234,7 @@ with col_right:
 
         st.text("")
         st.text("")
+        st.header("")
     
 
 

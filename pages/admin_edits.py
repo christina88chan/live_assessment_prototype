@@ -1,8 +1,10 @@
 # pages/admin_edits.py
 
+# in progress
+
 import streamlit as st
 from ui_shared import admin_sidebar, student_top_button
-from supabase_client import upsert_assignment
+from supabase_client import upsert_assignment, sign_out
 
 # -----------------------------
 # Init state
@@ -19,9 +21,15 @@ for k, v in DEFAULTS.items():
 # -----------------------------
 # Page chrome
 # -----------------------------
-st.header("Admin Edits")
+header_col, student_col = st.columns ([8, 1])
+with header_col: 
+    st.header("✏️ Edits")
+with student_col:
+    if st.button("Logout", use_container_width=True, key="button_logout"):
+            st.toast("You have successfully logged out. Click on the student view to log out", icon="✅")
+            sign_out()
+
 admin_sidebar()
-student_top_button()
 
 st.markdown("Create assignments for your students. Define the question and the grading criteria below.")
 

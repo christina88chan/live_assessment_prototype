@@ -3,16 +3,21 @@
 import streamlit as st
 from datetime import datetime
 import pandas as pd
-from supabase_client import list_assignments, list_submissions
+from supabase_client import list_assignments, list_submissions, sign_out
 from ui_shared import admin_sidebar, student_top_button
 
-st.header("Admin Home")
+header_col, student_col = st.columns ([8, 1])
+with header_col: 
+    st.header("🏠 Home")
+with student_col:
+    if st.button("Logout", use_container_width=True, key="button_logout"):
+            st.toast("You have successfully logged out. Click on the student view to log out.", icon="✅")
+            sign_out()
 admin_sidebar()
-student_top_button()
 
 st.markdown(
-    "Manage your class at a glance. The **right column** lists all assignments with their class average. "
-    "Use **Edit** to update an assignment. Data is pulled live from Supabase."
+    "Manage your class at a glance. Here you can view your assessment submissions and student results."
+    "Use the **Edit** to update an assignment. Data is pulled live from Supabase."
 )
 
 # Refresh row
@@ -47,8 +52,6 @@ for a in assignments:
 left, right = st.columns([1, 2])
 
 with left:
-    st.subheader("Snapshot")
-    st.metric("Assignments", len(assignments))
     st.metric("Total submissions", all_submissions_count)
     st.caption("Tip: Click **Refresh data** after recording new student answers.")
 

@@ -5,12 +5,10 @@ from supabase_client import sign_out
 def admin_sidebar():
     with st.sidebar:
         st.subheader("Admin")
-        if st.button("🏠 Admin Home", use_container_width=True, key="nav_home"):
+        if st.button("🏠 Home", use_container_width=True, key="nav_home"):
             st.switch_page("pages/admin_home.py")
-        if st.button("✏️ Admin Edits", use_container_width=True, key="nav_edits"):
+        if st.button("✏️ Edits", use_container_width=True, key="nav_edits"):
             st.switch_page("pages/admin_edits.py")
-        if st.button("📊 Admin Dash", use_container_width=True, key="nav_dash"):
-            st.switch_page("pages/admin_dash.py")
         st.divider()
         if st.button("🎧 Student View", use_container_width=True, key="nav_student"):
             st.switch_page("student_login_.py")
