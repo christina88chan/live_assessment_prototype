@@ -26,8 +26,6 @@ with button_col:
                 del st.session_state[key]
             st.switch_page("student_login.py")
 
-        
-
 
 # ---------- Styles ----------
 st.markdown("""
@@ -202,28 +200,27 @@ col_left, col_right = st.columns([3, 3])
 
 # ----- Left: assignment & question -----
 with col_left:
-    st.subheader("1. Read the Assessment Document")
+    st.container(border=True):
+        st.subheader("1. Read the Assessment Document")
 
-    google_doc_url = "https://docs.google.com/document/d/1NZ5R_MOlGGjB58Ynw7AtfwR7lsapZGhP6Dux7JwHnVQ/edit?usp=sharing"
+        google_doc_url = "https://docs.google.com/document/d/1NZ5R_MOlGGjB58Ynw7AtfwR7lsapZGhP6Dux7JwHnVQ/edit?usp=sharing"
     
-    # Embed the Google Doc in an iframe
-    st.markdown(f"""
-    <iframe src="{google_doc_url}" width="100%" height="700px" frameborder="0">
-    </iframe>
-    """, unsafe_allow_html=True)
+        # Embed the Google Doc in an iframe
+        st.markdown(f"""
+        <iframe src="{google_doc_url}" width="100%" height="700px" frameborder="0">
+        </iframe>
+        """, unsafe_allow_html=True)
+
     
-
-
-
+        st.subheader("2. Key Concepts")
+        st.markdown("""
+        1. **Prompt Engineering**
+        2. **Prompt Workflows**
+        3. **Evaluation Metrics**
+        """)
+    
 # ----- Right: name, API key, tabs -----
 with col_right:
-    st.subheader("2. Review key Concepts")
-    st.markdown("""
-    1. **Problem Understanding**
-    2. **Prompt Design & Iteration**
-    3. **Evaluation**
-    """)
-
     st.subheader("3. Record Your Response")
     recorded_audio_output = mic_recorder(
     start_prompt="Click to Start Recording",
@@ -261,7 +258,7 @@ with col_right:
                 transcription_text = response.text or ""
 
                 # Debugging: Check what is returned from the API
-                  # Check if this is populated
+                # Check if this is populated
 
                 st.session_state.edited_transcription_text = transcription_text
                 
@@ -277,7 +274,6 @@ with col_right:
                                
            # Editor for transcription (thoughts)
     if st.session_state.edited_transcription_text:
-        st.subheader("Review and Edit Your Transcription:")
         st.info("Edit the transcription text below as needed")
         st.session_state.edited_transcription_text = st.text_area(
             "Edit your transcribed thoughts here:",
@@ -478,19 +474,12 @@ with col_right:
                         if data:
                             st.success("Answer submitted and saved to Supabase!")
                         else:
-                            st.warning("Submission saved locally, but Supabase didnâ€™t return a row. Check RLS/policies.")
+                            st.warning("Submission saved locally, but Supabase did not return a row. Check RLS/policies.")
                     except Exception as e:
                         st.error(f"Failed to save to Supabase: {e}")
 
-
-                           # Reset after submit
-                        st.session_state.recorded_audio_bytes = None
-                        st.session_state.edited_transcription_text = ""
-                        st.session_state.student_prompt_text = ""
-                        st.session_state.show_editor = False
-                        st.session_state.grade_feedback = None
-                        st.rerun()
-
+    if st.button("Click here if Assessment Complete"):
+        st.switch_page("student_login_.py")
 
 # ---------- Grade feedback ----------
 if st.session_state.grade_feedback:
