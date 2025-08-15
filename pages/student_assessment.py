@@ -6,26 +6,28 @@ from streamlit_mic_recorder import mic_recorder
 from google.api_core.exceptions import GoogleAPIError
 from datetime import datetime
 import json
-from supabase_client import list_assignments, insert_submission
+from supabase_client import insert_submission
 
 # Streamlit needs this BEFORE any UI calls
 st.set_page_config(page_title="Blossom Assessment - Assessment", layout="wide")
 
-@st.cache_data(ttl=30)
-def fetch_assignments():
-    try:
-        return list_assignments()
-    except Exception as e:
-        st.error(f"Couldnâ€™t load assignments from Supabase: {e}")
-        return []
 
 
-header_col, admin_col = st.columns ([8, 1])
-with header_col: 
-    st.header("Blossom Assessment - Student View")
-with admin_col:
-    if st.button("Admin Login"):
-        st.switch_page("pages/auth.py")
+header_col, button_col = st.columns([8, 1])
+with header_col:
+    st.header("Blossom Assessment")
+with button_col:
+    if st.session_state.get("is_admin_logged_in"):
+        if st.button("Return to Admin Home"):
+            st.switch_page("pages/admin_home.py")
+    else:
+        if st.button("Log Out"):
+            for key in list(st.session_state.keys()):
+                del st.session_state[key]
+            st.switch_page("student_login.py")
+
+        
+
 
 # ---------- Styles ----------
 st.markdown("""
@@ -171,7 +173,6 @@ def _submit_answer():
                 "student_name": st.session_state.get("visitor_id_input"),
                 "transcript_text": st.session_state.edited_transcription_text,
                 "student_prompt": st.session_state.student_prompt_text,
-                "grade_overall": None,
                 "grade_json": {"text": st.session_state.grade_feedback} if st.session_state.grade_feedback else None,
             }
             data = insert_submission(payload)
@@ -190,13 +191,11 @@ def _submit_answer():
         st.session_state.grade_feedback = None
         st.rerun()
 
-
-assignments = list_assignments()
-options = [
-   {"id": a["id"], "title": (a.get("title") or "Untitled"), "question": (a.get("question_text") or "")}
-   for a in assignments
-]
-
+options = [{
+    "id": "Blossom",  # hardcoded assignment ID
+    "title": "Blossom Assignment",
+    "question": "Please record a spoken response to the prompt and submit it."
+}]
 
 # ---------- Layout ----------
 col_left, col_right = st.columns([3, 3])
@@ -473,7 +472,6 @@ with col_right:
                         "student_name": st.session_state.get("visitor_id_input"),
                         "transcript_text": st.session_state.edited_transcription_text,
                         "student_prompt": st.session_state.student_prompt_text,
-                        "grade_overall": None,
                         "grade_json": {"text": st.session_state.grade_feedback} if st.session_state.grade_feedback else None,
                         }
                         data = insert_submission(payload)
