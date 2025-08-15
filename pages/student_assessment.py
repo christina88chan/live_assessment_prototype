@@ -6,21 +6,23 @@ from streamlit_mic_recorder import mic_recorder
 from google.api_core.exceptions import GoogleAPIError
 from datetime import datetime
 import json
-from supabase_client import list_assignments, insert_submission
+from supabase_client import insert_submission
 
 # Streamlit needs this BEFORE any UI calls
 st.set_page_config(page_title="Blossom Assessment - Assessment", layout="wide")
 
-@st.cache_data(ttl=30)
-def fetch_assignments():
-    try:
-        return list_assignments()
-    except Exception as e:
-        st.error(f"Couldnâ€™t load assignments from Supabase: {e}")
-        return []
-
-
-st.header("Blossom Assessment - Student View")
+header_col, button_col = st.columns([8, 1])
+with header_col:
+    st.header("Blossom Assessment")
+with button_col:
+    if st.session_state.get("is_admin_logged_in"):
+        if st.button("Return to Admin Home"):
+            st.switch_page("pages/admin_home.py")
+    else:
+        if st.button("Log Out"):
+            for key in list(st.session_state.keys()):
+                del st.session_state[key]
+            st.switch_page("student_login.py")
 
 # ---------- Styles ----------
 st.markdown("""
@@ -144,9 +146,8 @@ if 'grading_prompt_text' not in st.session_state:
     st.session_state.grading_prompt_text = ""
 
 def _uk(base: str) -> str:
-    """Unique widget keys per assignment + user to avoid collisions."""
-    return f"{base}_{st.session_state.get('selected_assignment_id') or 'na'}_{st.session_state.get('visitor_id_input') or 'anon'}"
-
+    """Unique widget keys per user to avoid collisions."""
+    return f"{base}_{st.session_state.get('visitor_id_input') or 'anon'}"
 
 def _submit_answer():
     if not st.session_state.get("visitor_id_input"):
@@ -155,29 +156,24 @@ def _submit_answer():
     if not st.session_state.student_prompt_text.strip():
         st.warning("Final prompt cannot be empty.")
         return
-    if not st.session_state.get("selected_assignment_id"):
-        st.warning("Please choose an assignment before submitting.")
-        return
 
     with st.spinner("Saving your response..."):
         try:
             payload = {
-                "assignment_id": st.session_state["selected_assignment_id"],
                 "student_name": st.session_state.get("visitor_id_input"),
                 "transcript_text": st.session_state.edited_transcription_text,
                 "student_prompt": st.session_state.student_prompt_text,
-                "grade_overall": None,
                 "grade_json": {"text": st.session_state.grade_feedback} if st.session_state.grade_feedback else None,
             }
             data = insert_submission(payload)
             if data:
                 st.success("Answer submitted and saved to Supabase!")
             else:
-                st.warning("Submission saved locally, but Supabase didnâ€™t return a row. Check RLS/policies.")
+                st.warning("Submission saved locally, but Supabase didn’t return a row. Check RLS/policies.")
         except Exception as e:
             st.error(f"Failed to save to Supabase: {e}")
 
-        # Reset after submit
+        # Reset
         st.session_state.recorded_audio_bytes = None
         st.session_state.edited_transcription_text = ""
         st.session_state.student_prompt_text = ""
@@ -186,19 +182,12 @@ def _submit_answer():
         st.rerun()
 
 
-assignments = list_assignments()
-options = [
-   {"id": a["id"], "title": (a.get("title") or "Untitled"), "question": (a.get("question_text") or "")}
-   for a in assignments
-]
-
-
 # ---------- Layout ----------
 col_left, col_right = st.columns([3, 3])
 
 # ----- Left: assignment & question -----
 with col_left:
-    st.container(border=True):
+    with st.container():
         st.subheader("1. Read the Assessment Document")
 
         google_doc_url = "https://docs.google.com/document/d/1NZ5R_MOlGGjB58Ynw7AtfwR7lsapZGhP6Dux7JwHnVQ/edit?usp=sharing"
@@ -210,15 +199,17 @@ with col_left:
         """, unsafe_allow_html=True)
 
     
-        st.subheader("2. Key Concepts")
-        st.markdown("""
+        
+    
+# ----- Right: name, API key, tabs -----
+with col_right:
+    st.subheader("2. Key Concepts")
+    st.markdown("""
         1. **Prompt Engineering**
         2. **Prompt Workflows**
         3. **Evaluation Metrics**
         """)
-    
-# ----- Right: name, API key, tabs -----
-with col_right:
+
     st.subheader("3. Record Your Response")
     recorded_audio_output = mic_recorder(
     start_prompt="Click to Start Recording",
@@ -462,11 +453,9 @@ with col_right:
                  with st.spinner("Saving your response..."):
                     try:
                         payload = {
-                        "assignment_id": st.session_state["selected_assignment_id"],
                         "student_name": st.session_state.get("visitor_id_input"),
                         "transcript_text": st.session_state.edited_transcription_text,
                         "student_prompt": st.session_state.student_prompt_text,
-                        "grade_overall": None,
                         "grade_json": {"text": st.session_state.grade_feedback} if st.session_state.grade_feedback else None,
                         }
                         data = insert_submission(payload)
@@ -477,8 +466,6 @@ with col_right:
                     except Exception as e:
                         st.error(f"Failed to save to Supabase: {e}")
 
-    if st.button("Click here if Assessment Complete"):
-        st.switch_page("student_login_.py")
 
 # ---------- Grade feedback ----------
 if st.session_state.grade_feedback:

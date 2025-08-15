@@ -1,157 +1,116 @@
-# pages/admin_edits.py
-
-# in progress
-
 import streamlit as st
-from ui_shared import admin_sidebar, student_top_button
-from supabase_client import upsert_assignment, sign_out
+from ui_shared import create_admin_sidebar, create_student_view_button, render_admin_logout
+from supabase_client import get_client
 
-# -----------------------------
-# Init state
-# -----------------------------
-DEFAULTS = {
-    "assignment_title": "",
-    "question_text": "",
-    "rubric_content": "",
+# Set page layout and background fix
+st.set_page_config(page_title="Edit Grade", layout="wide")
+
+# Shared sidebar
+create_admin_sidebar()
+create_student_view_button()
+render_admin_logout()
+
+# Background and theme style fix to match student side
+st.markdown("""
+<style>
+/* Match Blossom student theme */
+html, body, [data-testid="stAppViewContainer"], [data-testid="stApp"] {
+    background-color: #2f2433 !important;
+    color: #f2f2f2 !important;
+    height: 100%;
+    width: 100%;
+    margin: 0;
+    padding: 0;
 }
-for k, v in DEFAULTS.items():
-    if k not in st.session_state:
-        st.session_state[k] = v
 
-# -----------------------------
-# Page chrome
-# -----------------------------
-header_col, student_col = st.columns ([8, 1])
-with header_col: 
-    st.header("✏️ Edits")
-with student_col:
-    if st.button("Logout", use_container_width=True, key="button_logout"):
-            st.toast("You have successfully logged out. Click on the student view to log out", icon="✅")
-            sign_out()
+/* Remove black header strip */
+[data-testid="stHeader"] {
+    background: transparent !important;
+    height: 0 !important;
+    border-bottom: none !important;
+}
 
-admin_sidebar()
+/* Input and textarea boxes */
+div.stTextInput > div > div > input,
+div.stTextArea > div > div > textarea {
+    background-color: #5c4a5f;
+    color: white;
+    border: 1px solid #c49bb4;
+    border-radius: 6px;
+    padding: 10px;
+    font-size: 16px;
+}
 
-st.markdown("Create assignments for your students. Define the question and the grading criteria below.")
+textarea {
+    min-height: 300px !important;
+}
 
-# -----------------------------
-# Title at the top
-# -----------------------------
-st.subheader("Title")
-col_t1, col_t2, col_t3 = st.columns([4, 1, 1])
-with col_t1:
-    new_title = st.text_input("Assignment title", value=st.session_state.assignment_title, key="title_input")
-with col_t2:
-    if st.button("Save Title", key="save_title"):
-        st.session_state.assignment_title = new_title
-        st.success("Title saved.")
-        st.rerun()
-with col_t3:
-    if st.button("Clear Title", key="clear_title"):
-        st.session_state.assignment_title = ""
-        st.success("Title cleared.")
-        st.rerun()
+/* Buttons */
+.stButton > button {
+    background-color: #d46a8c;
+    color: white !important;
+    border-radius: 8px;
+    padding: 10px 20px;
+    font-weight: 600;
+    border: none;
+}
+.stButton > button:hover {
+    background-color: #b45873;
+}
 
-st.caption(f"Current title: {st.session_state.assignment_title or 'Untitled'}")
+/* Headers */
+h1, h2, h3, h4, h5 {
+    color: #ffb6c1 !important;
+}
+</style>
+""", unsafe_allow_html=True)
 
-# -----------------------------
-# Two-column editor
-# -----------------------------
-col_left, col_right = st.columns(2)
 
-with col_left:
-    st.subheader("📝 Question")
-    with st.expander("Edit question", expanded=True):
-        q_val = st.text_area(
-            "Write the question students will answer:",
-            value=st.session_state.question_text,
-            height=220,
-            key="question_text_area",
-        )
-        q1, q2 = st.columns(2)
-        with q1:
-            if st.button("💾 Save Question", key="save_question"):
-                st.session_state.question_text = q_val
-                st.success("Question saved.")
-                st.rerun()
-        with q2:
-            if st.button("🗑️ Clear Question", key="clear_question"):
-                st.session_state.question_text = ""
-                st.success("Question cleared.")
-                st.rerun()
-    with st.expander("Preview question", expanded=False):
-        if st.session_state.question_text:
-            st.text(st.session_state.question_text)
-        else:
-            st.info("No question saved yet.")
+# =============================
+# Main Content Logic
+# =============================
 
-with col_right:
-    st.subheader("📋 Assessment Rubric")
-    with st.expander("Edit rubric", expanded=True):
-        rubric_val = st.text_area(
-            "Paste or write your rubric:",
-            value=st.session_state.rubric_content,
-            height=220,
-            key="rubric_text_area",
-        )
-        col_r1, col_r2 = st.columns(2)
-        with col_r1:
-            if st.button("💾 Save Rubric", key="save_rubric"):
-                st.session_state.rubric_content = rubric_val
-                st.success("Rubric saved.")
-                st.rerun()
-        with col_r2:
-            if st.button("🗑️ Clear Rubric", key="clear_rubric"):
-                st.session_state.rubric_content = ""
-                st.success("Rubric cleared.")
-                st.rerun()
-    with st.expander("Preview rubric", expanded=False):
-        if st.session_state.rubric_content:
-            st.text(st.session_state.rubric_content)
-        else:
-            st.info("No rubric content to preview.")
+if "edit_target" not in st.session_state:
+    st.error("No student selected. Please go back to the dashboard.")
+    st.stop()
 
-# -----------------------------
-# Bottom actions
-# -----------------------------
-col_b1, col_b2 = st.columns(2)
-with col_b1:
-    if st.button("New Assignment", key="new_assignment"):
-        for k in DEFAULTS:
-            st.session_state[k] = DEFAULTS[k]
-        st.success("Cleared. Start a new assignment.")
-        st.rerun()
-with col_b2:
-    st.caption("Fill in Title, Question, and Rubric below, then save.")
+target = st.session_state.edit_target
 
-# -----------------------------
-# Save to Supabase
-# -----------------------------
-if st.button("Save assignment to Supabase", type="primary", key="save_to_supabase"):
-    title = (st.session_state.assignment_title or "Untitled").strip()
-    question = (st.session_state.question_text or "").strip()
-    rubric = (st.session_state.rubric_content or "").strip()
+st.title(f"✏️ Edit Grade for {target['student_name']}")
 
-    if not title:
-        st.warning("Please enter a title before saving.")
-    elif not question:
-        st.warning("Please enter a question before saving.")
-    else:
-        try:
-            payload = {
-                "title": title,
-                "description": "",  # optional
-                "question_text": question,
-                "rubric_text": rubric,
-            }
-            if st.session_state.get("current_assignment_id"):
-                payload["id"] = st.session_state["current_assignment_id"]
+st.markdown("### 📝 Full Transcript")
+st.markdown(f"""
+<div style='background-color:#5c4a5f;padding:10px;border-radius:8px;color:white;'>
+{target['transcript_text']}
+</div>
+""", unsafe_allow_html=True)
 
-            result = upsert_assignment(payload)
-            data = (result or {}).get("data") or []
-            if data:
-                st.session_state["current_assignment_id"] = data[0].get("id")
-                st.success("Assignment saved to Supabase.")
-            else:
-                st.info("No data returned from Supabase. Check RLS policies and keys.")
-        except Exception as e:
-            st.error(f"Failed to save to Supabase: {e}")
+st.markdown("### 📊 Grade Info")
+
+col1, col2 = st.columns(2)
+
+with col1:
+    st.markdown("**Current Grade (Full Display):**")
+    st.markdown(f"""
+    <div style='background-color:#5c4a5f;padding:10px;border-radius:8px;color:white;min-height:300px;white-space:pre-wrap'>
+    {target['grade']}
+    </div>
+    """, unsafe_allow_html=True)
+
+with col2:
+    st.markdown("**Edit Grade:**")
+    with st.form("grade_form"):
+        new_grade = st.text_area("Update Grade (JSON or Summary):", value=str(target['grade']), height=300)
+        submit = st.form_submit_button("💾 Save Grade")
+        if submit:
+            sb = get_client()
+            try:
+                sb.table("submissions").update({
+                    "grade_json": new_grade
+                }).eq("id", target["id"]).execute()
+                st.session_state.edit_target['grade'] = new_grade  # update local session state
+                st.success("Grade updated successfully.")
+                st.rerun()  # refresh page to reflect change
+            except Exception as e:
+                st.error(f"Error updating grade: {e}")
+

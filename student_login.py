@@ -1,19 +1,24 @@
 # =========================
-# student_login_.py  (full file)
+# student_login.py  (fixed full file)
 # =========================
 
 import streamlit as st
 import google.generativeai as genai
 import io
 import os
+import sys
 from streamlit_mic_recorder import mic_recorder
 from google.api_core.exceptions import GoogleAPIError
 from datetime import datetime
 import json
-from supabase_client import list_assignments, insert_submission
 
-# Streamlit needs this BEFORE any UI calls
+# Fix: add root directory to sys.path so we can import supabase_client
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+from supabase_client import insert_submission
+
+# Set up page config
 st.set_page_config(page_title="Blossom Assessment - Login", layout="wide")
+
 
 @st.cache_data(ttl=30)
 def fetch_assignments():
@@ -138,7 +143,6 @@ def _submit_answer():
                 "student_name": st.session_state.get("visitor_id_input"),
                 "transcript_text": st.session_state.edited_transcription_text,
                 "student_prompt": st.session_state.student_prompt_text,
-                "grade_overall": None,
                 "grade_json": {"text": st.session_state.grade_feedback} if st.session_state.grade_feedback else None,
             }
             data = insert_submission(payload)
@@ -212,11 +216,11 @@ if st.button("Click to begin"):
         st.session_state.api_key_set = True  # API key is set
         st.switch_page("pages/student_assessment.py")
 
+
     else:
         st.warning("Please fill in all fields and check the affirmation.")
     # Checkbox for affirmation
     
-
 
 # ----- Right: name, API key, tabs -----
 with col_right:
@@ -235,7 +239,4 @@ with col_right:
         st.text("")
         st.text("")
         st.header("")
-    
-
-
       
