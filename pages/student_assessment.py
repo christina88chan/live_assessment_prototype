@@ -23,6 +23,7 @@ with button_col:
             for key in list(st.session_state.keys()):
                 del st.session_state[key]
             st.switch_page("student_login.py")
+            st.rerun()
 
 # ---------- Styles ----------
 st.markdown("""
