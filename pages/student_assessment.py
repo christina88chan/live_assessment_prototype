@@ -170,9 +170,10 @@ components.html(f"""
 <div style="position:sticky;top:0;z-index:999;padding:8px 12px;margin:-12px -12px 12px -12px;background:#4a3b4f;border-bottom:2px solid #d46a8c;">
   <div id="timerText" style="font-weight:800;font-size:28px;letter-spacing:0.04em;color:#ffe3ea;text-align:center;">⏱️ --:--</div>
   <div id="timerPhase" style="font-size:13px;opacity:0.85;color:#ffd7e0;text-align:center;margin-top:2px;"></div>
-  <div id="alert30" style="display:none;margin-top:6px;text-align:center;font-weight:600;padding:6px 10px;border-radius:6px;background:#66525f;border:1px solid #f2c94c;color:#ffeaa7;">⏳ 30 minutes have passed.</div>
-  <div id="alert50" style="display:none;margin-top:6px;text-align:center;font-weight:600;padding:6px 10px;border-radius:6px;background:#66525f;border:1px solid #f2c94c;color:#ffeaa7;">⏳ 50 minutes have passed.</div>
-  <div id="alert2"  style="display:none;margin-top:6px;text-align:center;font-weight:600;padding:6px 10px;border-radius:6px;background:#6d4b54;border:1px solid #ff7675;color:#ffd6d6;">⚠️ Last 2 minutes remaining — please submit.</div>
+  <div id="alert30" style="display:none;margin-top:6px;text-align:center;font-weight:600;padding:6px 10px;border-radius:6px;background:#66525f;border:1px solid #f2c94c;color:#ffeaa7;"> 15 minutes have passed.</div>
+  <div id="alert30" style="display:none;margin-top:6px;text-align:center;font-weight:600;padding:6px 10px;border-radius:6px;background:#66525f;border:1px solid #f2c94c;color:#ffeaa7;"> 30 minutes have passed.</div>
+  <div id="alert50" style="display:none;margin-top:6px;text-align:center;font-weight:600;padding:6px 10px;border-radius:6px;background:#66525f;border:1px solid #f2c94c;color:#ffeaa7;"> 50 minutes have passed.</div>
+  <div id="alert2"  style="display:none;margin-top:6px;text-align:center;font-weight:600;padding:6px 10px;border-radius:6px;background:#6d4b54;border:1px solid #ff7675;color:#ffd6d6;"> Last 2 minutes remaining, please submit.</div>
 </div>
 <script>
   const startTs = {start_ts};                 // epoch seconds
