@@ -148,6 +148,16 @@ if 'grading_prompt_text' not in st.session_state:
 if 'assessment_started_at' not in st.session_state:
     st.session_state.assessment_started_at = time.time()
 
+# NEW: Auto-transcription tracking
+if 'auto_transcribed_15' not in st.session_state:
+    st.session_state.auto_transcribed_15 = False
+if 'auto_transcribed_30' not in st.session_state:
+    st.session_state.auto_transcribed_30 = False
+if 'auto_transcribed_50' not in st.session_state:
+    st.session_state.auto_transcribed_50 = False
+if 'auto_transcribed_60' not in st.session_state:
+    st.session_state.auto_transcribed_60 = False
+
 # ---------- Assessment timer (server-side gating) ----------
 ASSESSMENT_LIMIT_SEC = 60 * 60    # 60 minutes hard limit
 GRACE_PERIOD_SEC     = 60         # +1 minute to transcribe/paste & submit
@@ -162,24 +172,90 @@ def get_phase_and_remaining():
     else:
         return 'locked', -1
 
+# NEW: Auto-transcription function
+def perform_auto_transcription(trigger_reason):
+    """Perform automatic transcription and update session state"""
+    if st.session_state.recorded_audio_bytes is None:
+        st.warning(f"Auto-transcription triggered ({trigger_reason}) but no recording found.")
+        return
+    
+    try:
+        mime_type = "audio/wav"
+        audio_io = io.BytesIO(st.session_state.recorded_audio_bytes)
+        audio_file = genai.upload_file(
+            path=audio_io,
+            mime_type=mime_type,
+        )
+        
+        # Poll until processed
+        while getattr(audio_file, "state", None) and getattr(audio_file.state, "name", "") == "PROCESSING":
+            time.sleep(1)
+            audio_file = genai.get_file(audio_file.name)
+
+        prompt = "Transcribe the given audio accurately. Provide only the spoken text."
+        model = genai.GenerativeModel('models/gemini-1.5-flash-latest')
+        response = model.generate_content([audio_file, prompt])
+        transcription_text = response.text or ""
+        st.session_state.edited_transcription_text = transcription_text
+        
+        st.success(f"Auto-transcription completed ({trigger_reason})")
+        
+    except GoogleAPIError as api_err:
+        st.error(f"Auto-transcription failed ({trigger_reason}): {api_err.message}")
+    except Exception as e:
+        st.error(f"Auto-transcription error ({trigger_reason}): {e}")
+
+# NEW: Check for auto-transcription triggers
+def check_auto_transcription_triggers():
+    now = time.time()
+    elapsed = now - st.session_state.assessment_started_at
+    
+    # 15 minutes (900 seconds)
+    if elapsed >= 900 and not st.session_state.auto_transcribed_15:
+        st.session_state.auto_transcribed_15 = True
+        perform_auto_transcription("15 minutes")
+        st.rerun()
+    
+    # 30 minutes (1800 seconds)
+    elif elapsed >= 1800 and not st.session_state.auto_transcribed_30:
+        st.session_state.auto_transcribed_30 = True
+        perform_auto_transcription("30 minutes")
+        st.rerun()
+    
+    # 50 minutes (3000 seconds)
+    elif elapsed >= 3000 and not st.session_state.auto_transcribed_50:
+        st.session_state.auto_transcribed_50 = True
+        perform_auto_transcription("50 minutes")
+        st.rerun()
+    
+    # 60 minutes (3600 seconds)
+    elif elapsed >= 3600 and not st.session_state.auto_transcribed_60:
+        st.session_state.auto_transcribed_60 = True
+        perform_auto_transcription("60 minutes - final")
+        st.rerun()
+
 phase, remaining_sec = get_phase_and_remaining()
 
-# ---------- Visual timer (self-contained HTML+CSS+JS so alerts hide initially) ----------
+# NEW: Check auto-transcription triggers before rendering
+check_auto_transcription_triggers()
+
+# ---------- Visual timer (updated to show auto-transcription status) ----------
 start_ts = int(st.session_state.assessment_started_at)
 components.html(f"""
 <div style="position:sticky;top:0;z-index:999;padding:8px 12px;margin:-12px -12px 12px -12px;background:#4a3b4f;border-bottom:2px solid #d46a8c;">
   <div id="timerText" style="font-weight:800;font-size:28px;letter-spacing:0.04em;color:#ffe3ea;text-align:center;">⏱️ --:--</div>
   <div id="timerPhase" style="font-size:13px;opacity:0.85;color:#ffd7e0;text-align:center;margin-top:2px;"></div>
-  <div id="alert30" style="display:none;margin-top:6px;text-align:center;font-weight:600;padding:6px 10px;border-radius:6px;background:#66525f;border:1px solid #f2c94c;color:#ffeaa7;"> 15 minutes have passed.</div>
-  <div id="alert30" style="display:none;margin-top:6px;text-align:center;font-weight:600;padding:6px 10px;border-radius:6px;background:#66525f;border:1px solid #f2c94c;color:#ffeaa7;"> 30 minutes have passed.</div>
-  <div id="alert50" style="display:none;margin-top:6px;text-align:center;font-weight:600;padding:6px 10px;border-radius:6px;background:#66525f;border:1px solid #f2c94c;color:#ffeaa7;"> 50 minutes have passed.</div>
-  <div id="alert2"  style="display:none;margin-top:6px;text-align:center;font-weight:600;padding:6px 10px;border-radius:6px;background:#6d4b54;border:1px solid #ff7675;color:#ffd6d6;"> Last 2 minutes remaining, please submit.</div>
+  <div id="alert15" style="display:none;margin-top:6px;text-align:center;font-weight:600;padding:6px 10px;border-radius:6px;background:#66525f;border:1px solid #f2c94c;color:#ffeaa7;">📝 15 minutes - Auto-transcription triggered</div>
+  <div id="alert30" style="display:none;margin-top:6px;text-align:center;font-weight:600;padding:6px 10px;border-radius:6px;background:#66525f;border:1px solid #f2c94c;color:#ffeaa7;">📝 30 minutes - Auto-transcription triggered</div>
+  <div id="alert50" style="display:none;margin-top:6px;text-align:center;font-weight:600;padding:6px 10px;border-radius:6px;background:#66525f;border:1px solid #f2c94c;color:#ffeaa7;">📝 50 minutes - Auto-transcription triggered</div>
+  <div id="alert2"  style="display:none;margin-top:6px;text-align:center;font-weight:600;padding:6px 10px;border-radius:6px;background:#6d4b54;border:1px solid #ff7675;color:#ffd6d6;">⚠️ Last 2 minutes remaining, please submit.</div>
+  <div id="alert60" style="display:none;margin-top:6px;text-align:center;font-weight:600;padding:6px 10px;border-radius:6px;background:#6d4b54;border:1px solid #ff7675;color:#ffd6d6;">📝 60 minutes - Final auto-transcription</div>
 </div>
 <script>
   const startTs = {start_ts};                 // epoch seconds
   const LIMIT = {ASSESSMENT_LIMIT_SEC};       // 60 min
   const GRACE = {GRACE_PERIOD_SEC};           // 1 min
-  let shown30=false, shown50=false, shown2=false, forced=false;
+  let shown15=false, shown30=false, shown50=false, shown2=false, shown60=false, forced=false;
 
   function fmt(sec) {{
     sec = Math.max(0, sec|0);
@@ -201,12 +277,16 @@ components.html(f"""
       const remaining = LIMIT - elapsed;
       txt.textContent = "⏱️ " + fmt(remaining) + " remaining";
       phaseEl.textContent = "Recording allowed";
+      
+      // Auto-transcription alerts
+      if (!shown15 && elapsed >= 15*60) {{ show('alert15'); shown15=true; }}
       if (!shown30 && elapsed >= 30*60) {{ show('alert30'); shown30=true; }}
       if (!shown50 && elapsed >= 50*60) {{ show('alert50'); shown50=true; }}
       if (!shown2  && remaining <= 120) {{ show('alert2');  shown2=true;  }}
     }} else if (elapsed < LIMIT + GRACE) {{
       txt.textContent = "⏳ Grace period: 1 minute to transcribe & submit";
       phaseEl.textContent = "Recording disabled • Transcription/submission only";
+      if (!shown60) {{ show('alert60'); shown60=true; }}
       if (!shown2) {{ show('alert2'); shown2=true; }}
       // force a single full rerender right when we enter grace (to hide recorder)
       if (!forced) {{ forced = true; setTimeout(()=>window.top.location.reload(), 100); }}
@@ -220,7 +300,7 @@ components.html(f"""
   tick();
   setInterval(tick, 1000);
 </script>
-""", height=140)
+""", height=160)
 
 def _uk(base: str) -> str:
     """Unique widget keys per user to avoid collisions."""
@@ -246,7 +326,7 @@ def _submit_answer():
             if data:
                 st.success("Answer submitted and saved to Supabase!")
             else:
-                st.warning("Submission saved locally, but Supabase didn’t return a row. Check RLS/policies.")
+                st.warning("Submission saved locally, but Supabase didn't return a row. Check RLS/policies.")
         except Exception as e:
             st.error(f"Failed to save to Supabase: {e}")
 
@@ -296,14 +376,27 @@ with col_right:
     else:
         st.info("Recording disabled (time limit reached). You may still transcribe existing audio and submit during the 1‑minute grace period.")
 
+    # NEW: Auto-transcription status display
+    if st.session_state.auto_transcribed_15 or st.session_state.auto_transcribed_30 or st.session_state.auto_transcribed_50 or st.session_state.auto_transcribed_60:
+        auto_status = []
+        if st.session_state.auto_transcribed_15:
+            auto_status.append("15 min")
+        if st.session_state.auto_transcribed_30:
+            auto_status.append("30 min")
+        if st.session_state.auto_transcribed_50:
+            auto_status.append("50 min")
+        if st.session_state.auto_transcribed_60:
+            auto_status.append("60 min")
+        st.info(f"🤖 Auto-transcription completed at: {', '.join(auto_status)}")
+
     # ----- Transcription (allowed in 'active' and 'grace') -----
     st.subheader("4. Transcribe Your Response")
     transcribe_disabled = (phase == 'locked') or (st.session_state.recorded_audio_bytes is None)
-    if st.button("Transcribe Recording", disabled=transcribe_disabled, key=_uk("transcribe_btn")):
+    if st.button("Manual Transcribe", disabled=transcribe_disabled, key=_uk("transcribe_btn")):
         if st.session_state.recorded_audio_bytes is None:
             st.warning("No recording found to transcribe.")
         else:
-            with st.spinner("Transcribing your audio..."):
+            with st.spinner("Manually transcribing your audio..."):
                 try:
                     mime_type = "audio/wav"
                     audio_io = io.BytesIO(st.session_state.recorded_audio_bytes)
