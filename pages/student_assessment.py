@@ -8,6 +8,7 @@ from datetime import datetime
 import json
 from supabase_client import insert_submission
 import time
+from html import escape  # add near imports
 import streamlit.components.v1 as components  # for JS timer
 
 # Streamlit needs this BEFORE any UI calls
@@ -149,6 +150,8 @@ if 'assessment_started_at' not in st.session_state:
     st.session_state.assessment_started_at = time.time()
 
 # NEW: Auto-transcription tracking
+if 'auto_transcribed_1m' not in st.session_state:
+    st.session_state.auto_transcribed_1m = False
 if 'auto_transcribed_15' not in st.session_state:
     st.session_state.auto_transcribed_15 = False
 if 'auto_transcribed_30' not in st.session_state:
@@ -157,6 +160,10 @@ if 'auto_transcribed_50' not in st.session_state:
     st.session_state.auto_transcribed_50 = False
 if 'auto_transcribed_60' not in st.session_state:
     st.session_state.auto_transcribed_60 = False
+
+# --- New: nudge storage ---
+if 'timer_nudges' not in st.session_state:
+    st.session_state.timer_nudges = []  # list of {"when": str, "text": str, "ts": int}
 
 # ---------- Assessment timer (server-side gating) ----------
 ASSESSMENT_LIMIT_SEC = 60 * 60    # 60 minutes hard limit
@@ -172,18 +179,44 @@ def get_phase_and_remaining():
     else:
         return 'locked', -1
 
-# NEW: Auto-transcription function
-def perform_auto_transcription(trigger_reason):
-    """Perform automatic transcription and update session state"""
+# -------------------- NEW: Nudge generator --------------------
+def generate_timer_nudge(transcript_text: str, trigger_reason: str) -> str:
+    """Return a brief, actionable nudge (max 2 sentences)."""
+    try:
+        if not transcript_text.strip():
+            return "Capture your initial plan in 1–2 sentences before proceeding."
+        prompt = f"""
+You are a concise TA. Based on the student's current reflection, give ONE short, actionable nudge (max 2 sentences) to improve clarity, workflow, or evaluation planning.
+
+Trigger: {trigger_reason}
+Student reflection so far:
+\"\"\"{transcript_text.strip()[:4000]}\"\"\"
+"""
+        model = genai.GenerativeModel('models/gemini-1.5-flash-latest')
+        resp = model.generate_content(prompt)
+        text = (resp.text or "").strip()[:500]
+        return text or "Add one concrete next step (e.g., define success criteria or split your prompt into steps)."
+    except Exception:
+        return "Write one concrete next step you’ll take next."
+
+def perform_auto_transcription(trigger_reason) -> bool:
+    """Perform automatic transcription and update session state. Returns True on success."""
+    # No audio yet (user hasn't clicked Stop)
     if st.session_state.recorded_audio_bytes is None:
+        msg = "No recording found—click Stop to capture audio, then resume. (We can only snapshot finished recordings.)"
+        st.session_state.timer_nudges.append({
+            "when": trigger_reason,
+            "text": msg,
+            "ts": int(time.time())
+        })
         st.warning(f"Auto-transcription triggered ({trigger_reason}) but no recording found.")
-        return
+        return False
     
     try:
         mime_type = "audio/wav"
         audio_io = io.BytesIO(st.session_state.recorded_audio_bytes)
         audio_file = genai.upload_file(
-            path=audio_io,
+            path=audio_io,   # if your SDK requires a real path, write audio_io to a temp file and pass that path
             mime_type=mime_type,
         )
         
@@ -197,21 +230,53 @@ def perform_auto_transcription(trigger_reason):
         response = model.generate_content([audio_file, prompt])
         transcription_text = response.text or ""
         st.session_state.edited_transcription_text = transcription_text
-        
+
+        # Generate and store a nudge (even if transcript is short)
+        try:
+            nudge = generate_timer_nudge(st.session_state.edited_transcription_text, trigger_reason)
+        except Exception:
+            nudge = "Write one concrete next step you’ll take next."
+        st.session_state.timer_nudges.append({
+            "when": trigger_reason,
+            "text": nudge,
+            "ts": int(time.time())
+        })
+
         st.success(f"Auto-transcription completed ({trigger_reason})")
+        return True
         
     except GoogleAPIError as api_err:
+        err_msg = f"Transcription failed: {api_err.message}"
+        st.session_state.timer_nudges.append({
+            "when": trigger_reason,
+            "text": err_msg,
+            "ts": int(time.time())
+        })
         st.error(f"Auto-transcription failed ({trigger_reason}): {api_err.message}")
+        return False
     except Exception as e:
+        err_msg = f"Transcription error: {e}"
+        st.session_state.timer_nudges.append({
+            "when": trigger_reason,
+            "text": err_msg,
+            "ts": int(time.time())
+        })
         st.error(f"Auto-transcription error ({trigger_reason}): {e}")
+        return False
 
 # NEW: Check for auto-transcription triggers
 def check_auto_transcription_triggers():
     now = time.time()
     elapsed = now - st.session_state.assessment_started_at
-    
+
+    # 1 minute (60 seconds) elapsed
+    if elapsed >= 60 and not st.session_state.auto_transcribed_1m:
+        st.session_state.auto_transcribed_1m = True
+        perform_auto_transcription("1 minute")
+        st.rerun()
+
     # 15 minutes (900 seconds)
-    if elapsed >= 900 and not st.session_state.auto_transcribed_15:
+    elif elapsed >= 900 and not st.session_state.auto_transcribed_15:
         st.session_state.auto_transcribed_15 = True
         perform_auto_transcription("15 minutes")
         st.rerun()
@@ -231,31 +296,90 @@ def check_auto_transcription_triggers():
     # 60 minutes (3600 seconds)
     elif elapsed >= 3600 and not st.session_state.auto_transcribed_60:
         st.session_state.auto_transcribed_60 = True
-        perform_auto_transcription("60 minutes - final")
+        perform_auto_transcription("60 minutes")
         st.rerun()
+
 
 phase, remaining_sec = get_phase_and_remaining()
 
 # NEW: Check auto-transcription triggers before rendering
 check_auto_transcription_triggers()
 
-# ---------- Visual timer (updated to show auto-transcription status) ----------
+# -------------------- NEW: Prepare latest nudge text per checkpoint --------------------
+def _latest_nudge_for(prefix: str) -> str:
+    # Finds the latest nudge whose "when" starts with the prefix (e.g., "15 minutes")
+    for item in reversed(st.session_state.timer_nudges):
+        if str(item.get("when","")).startswith(prefix):
+            return escape(item.get("text",""))
+    return ""
+
+nudge1m  = _latest_nudge_for("1 minute")
+nudge15  = _latest_nudge_for("15 minutes")
+nudge30  = _latest_nudge_for("30 minutes")
+nudge50  = _latest_nudge_for("50 minutes")
+nudge60  = _latest_nudge_for("60 minutes")
+
+# ---------- Visual timer (nudges shown inside alert boxes; minimizable) ----------
 start_ts = int(st.session_state.assessment_started_at)
 components.html(f"""
-<div style="position:sticky;top:0;z-index:999;padding:8px 12px;margin:-12px -12px 12px -12px;background:#4a3b4f;border-bottom:2px solid #d46a8c;">
-  <div id="timerText" style="font-weight:800;font-size:28px;letter-spacing:0.04em;color:#ffe3ea;text-align:center;">⏱️ --:--</div>
+<div id="timerWrap" style="position:sticky;top:0;z-index:999;padding:8px 12px;margin:-12px -12px 12px -12px;background:#4a3b4f;border-bottom:2px solid #d46a8c;">
+  <div style="display:flex;align-items:center;justify-content:center;gap:8px;">
+    <div id="timerText" style="font-weight:800;font-size:28px;letter-spacing:0.04em;color:#ffe3ea;text-align:center;">⏱️ --:--</div>
+    <button id="minBtn" title="Minimize alerts" style="margin-left:8px;border:1px solid #d46a8c;background:#3a2c3f;color:#ffe3ea;border-radius:8px;padding:4px 8px;font-weight:700;cursor:pointer;">Hide</button>
+  </div>
   <div id="timerPhase" style="font-size:13px;opacity:0.85;color:#ffd7e0;text-align:center;margin-top:2px;"></div>
-  <div id="alert15" style="display:none;margin-top:6px;text-align:center;font-weight:600;padding:6px 10px;border-radius:6px;background:#66525f;border:1px solid #f2c94c;color:#ffeaa7;">📝 15 minutes - Auto-transcription triggered</div>
-  <div id="alert30" style="display:none;margin-top:6px;text-align:center;font-weight:600;padding:6px 10px;border-radius:6px;background:#66525f;border:1px solid #f2c94c;color:#ffeaa7;">📝 30 minutes - Auto-transcription triggered</div>
-  <div id="alert50" style="display:none;margin-top:6px;text-align:center;font-weight:600;padding:6px 10px;border-radius:6px;background:#66525f;border:1px solid #f2c94c;color:#ffeaa7;">📝 50 minutes - Auto-transcription triggered</div>
-  <div id="alert2"  style="display:none;margin-top:6px;text-align:center;font-weight:600;padding:6px 10px;border-radius:6px;background:#6d4b54;border:1px solid #ff7675;color:#ffd6d6;">⚠️ Last 2 minutes remaining, please submit.</div>
-  <div id="alert60" style="display:none;margin-top:6px;text-align:center;font-weight:600;padding:6px 10px;border-radius:6px;background:#6d4b54;border:1px solid #ff7675;color:#ffd6d6;">📝 60 minutes - Final auto-transcription</div>
+
+  <div id="alertsArea" style="margin-top:8px;">
+    <div id="alert1m" style="display:none;margin-top:6px;text-align:left;font-weight:600;padding:10px 12px;border-radius:8px;background:#66525f;border:1px solid #f2c94c;color:#ffeaa7;line-height:1.3;">
+      <div>📝 1 minute - Auto-transcription completed</div>
+      <div style="margin-top:6px;font-weight:500;color:#fff;">💡 Nudge: {nudge1m or '—'}</div>
+    </div>
+    <div id="alert15" style="display:none;margin-top:6px;text-align:left;font-weight:600;padding:10px 12px;border-radius:8px;background:#66525f;border:1px solid #f2c94c;color:#ffeaa7;line-height:1.3;">
+      <div>📝 15 minutes - Auto-transcription completed</div>
+      <div style="margin-top:6px;font-weight:500;color:#fff;">💡 Nudge: {nudge15 or '—'}</div>
+    </div>
+    <div id="alert30" style="display:none;margin-top:6px;text-align:left;font-weight:600;padding:10px 12px;border-radius:8px;background:#66525f;border:1px solid #f2c94c;color:#ffeaa7;line-height:1.3;">
+      <div>📝 30 minutes - Auto-transcription completed</div>
+      <div style="margin-top:6px;font-weight:500;color:#fff;">💡 Nudge: {nudge30 or '—'}</div>
+    </div>
+    <div id="alert50" style="display:none;margin-top:6px;text-align:left;font-weight:600;padding:10px 12px;border-radius:8px;background:#66525f;border:1px solid #f2c94c;color:#ffeaa7;line-height:1.3;">
+      <div>📝 50 minutes - Auto-transcription completed</div>
+      <div style="margin-top:6px;font-weight:500;color:#fff;">💡 Nudge: {nudge50 or '—'}</div>
+    </div>
+    <div id="alert2"  style="display:none;margin-top:6px;text-align:center;font-weight:700;padding:10px 12px;border-radius:8px;background:#6d4b54;border:1px solid #ff7675;color:#ffd6d6;">⚠️ Last 2 minutes remaining, please submit.</div>
+    <div id="alert60" style="display:none;margin-top:6px;text-align:left;font-weight:600;padding:10px 12px;border-radius:8px;background:#6d4b54;border:1px solid #ff7675;color:#ffd6d6;line-height:1.3;">
+      <div>📝 60 minutes - Final auto-transcription</div>
+      <div style="margin-top:6px;font-weight:500;color:#fff;">💡 Nudge: {nudge60 or '—'}</div>
+    </div>
+  </div>
 </div>
 <script>
   const startTs = {start_ts};                 // epoch seconds
   const LIMIT = {ASSESSMENT_LIMIT_SEC};       // 60 min
   const GRACE = {GRACE_PERIOD_SEC};           // 1 min
-  let shown15=false, shown30=false, shown50=false, shown2=false, shown60=false, forced=false;
+  let shown1m=false, shown15=false, shown30=false, shown50=false, shown2=false, shown60=false, forced=false;
+
+  // Minimize persistence
+  const PANEL_KEY = "topAlertsMinimized";
+  const alertsArea = document.getElementById('alertsArea');
+  const minBtn = document.getElementById('minBtn');
+
+  function setMin(min) {{
+    if (min) {{
+      alertsArea.style.display = 'none';
+      minBtn.textContent = 'Show';
+      minBtn.title = 'Show alerts';
+      localStorage.setItem(PANEL_KEY, '1');
+    }} else {{
+      alertsArea.style.display = 'block';
+      minBtn.textContent = 'Hide';
+      minBtn.title = 'Hide alerts';
+      localStorage.setItem(PANEL_KEY, '0');
+    }}
+  }}
+  const isMin = localStorage.getItem(PANEL_KEY) === '1';
+  setMin(isMin);
+  minBtn.addEventListener('click', () => setMin(localStorage.getItem(PANEL_KEY) !== '1'));
 
   function fmt(sec) {{
     sec = Math.max(0, sec|0);
@@ -277,11 +401,16 @@ components.html(f"""
       const remaining = LIMIT - elapsed;
       txt.textContent = "⏱️ " + fmt(remaining) + " remaining";
       phaseEl.textContent = "Recording allowed";
-      
+
+      // 1 minute elapsed alert
+      if (!shown1m && elapsed >= 60) {{ show('alert1m'); shown1m=true; }}
+
       // Auto-transcription alerts
       if (!shown15 && elapsed >= 15*60) {{ show('alert15'); shown15=true; }}
       if (!shown30 && elapsed >= 30*60) {{ show('alert30'); shown30=true; }}
       if (!shown50 && elapsed >= 50*60) {{ show('alert50'); shown50=true; }}
+
+      // 2 minutes remaining
       if (!shown2  && remaining <= 120) {{ show('alert2');  shown2=true;  }}
     }} else if (elapsed < LIMIT + GRACE) {{
       txt.textContent = "⏳ Grace period: 1 minute to transcribe & submit";
@@ -300,7 +429,7 @@ components.html(f"""
   tick();
   setInterval(tick, 1000);
 </script>
-""", height=160)
+""", height=260)  # slightly taller to fit the extra 1-minute alert
 
 def _uk(base: str) -> str:
     """Unique widget keys per user to avoid collisions."""
@@ -374,11 +503,13 @@ with col_right:
             st.info("Recorded audio ready for transcription.")
             st.session_state.show_editor = True
     else:
-        st.info("Recording disabled (time limit reached). You may still transcribe existing audio and submit during the 1‑minute grace period.")
+        st.info("Recording disabled (time limit reached). You may still transcribe existing audio and submit during the 1-minute grace period.")
 
-    # NEW: Auto-transcription status display
-    if st.session_state.auto_transcribed_15 or st.session_state.auto_transcribed_30 or st.session_state.auto_transcribed_50 or st.session_state.auto_transcribed_60:
+    # NEW: Auto-transcription status display (simple)
+    if st.session_state.auto_transcribed_1m or st.session_state.auto_transcribed_15 or st.session_state.auto_transcribed_30 or st.session_state.auto_transcribed_50 or st.session_state.auto_transcribed_60:
         auto_status = []
+        if st.session_state.auto_transcribed_1m:
+            auto_status.append("1 min")
         if st.session_state.auto_transcribed_15:
             auto_status.append("15 min")
         if st.session_state.auto_transcribed_30:
