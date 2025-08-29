@@ -577,26 +577,24 @@ with col_right:
         disabled=(phase == 'locked')
     )
 
-    # ----- Grade & Submit (disabled when 'locked') -----
-    col_grade, col_submit = st.columns(2)
-    with col_grade:
-        if st.button("Grade Response", key=_uk("grade_response_button"), disabled=(phase == 'locked')):
-            if not st.session_state.student_prompt_text.strip():
-                st.warning("Final prompt is empty. Please enter your final prompt first.")
-            else:
-                with st.spinner("Getting evaluation from Gemini..."):
-                    try:
-                        grading_model = genai.GenerativeModel('models/gemini-1.5-flash-latest')
+    # ----- Combined Grade + Submit (new button) -----
+if st.button("Submit Response", key=_uk("submit_and_grade_button"), disabled=(phase == 'locked')):
+    if not st.session_state.student_prompt_text.strip():
+        st.warning("Final prompt cannot be empty.")
+    else:
+        with st.spinner("Grading and submitting your assessment..."):
+            try:
+                grading_model = genai.GenerativeModel('models/gemini-1.5-flash-latest')
 
-                        student_thoughts = st.session_state.edited_transcription_text
-                        student_final_prompt = st.session_state.student_prompt_text
+                student_thoughts = st.session_state.edited_transcription_text
+                student_final_prompt = st.session_state.student_prompt_text
 
-                        # ---- Prompt build  ----
-                        course_name = "Generative AI Skill-Building"
-                        course_goals = "to learn how to use and evaluate AI models"
-                        key_concepts = "Prompt Engineering, Prompt Workflow, Evaluation Metrics"
+                # ---- Prompt build  ----
+                course_name = "Generative AI Skill-Building"
+                course_goals = "to learn how to use and evaluate AI models"
+                key_concepts = "Prompt Engineering, Prompt Workflow, Evaluation Metrics"
 
-                        assessment_summary = '''
+                assessment_summary = '''
 Create a Prompt Engineering Workflow to generate personalized Human Bingo squares that facilitate meaningful connections between participants based on their survey responses.
 
 Requirements:
@@ -606,52 +604,52 @@ Requirements:
 - Include evaluation metrics for assessing output quality
 '''
 
-                        assessment_reflection_instructions = '''The student reflections should cover the following:
+                assessment_reflection_instructions = '''The student reflections should cover the following:
 • a brief outline of initial thoughts about how they might break down the task,
 • discussion of how they created and initial prompt how they plan to iterate on it next based on results,
 • initial thoughts on evaluation metrics they will use to evaluate results of their prompts.'''
 
-                        purpose = f'''You are a Teaching Assistant and you will be evaluating student submissions based on a given rubric. Students are taking part in a {course_name} course to {course_goals}. This includes learning the key concepts of {key_concepts}. If a student's submission does not include anything to grade (empty submission) then provide 0s for all the concepts and say "missing submission" for the reasoning since every student still requires a grade.'''
+                purpose = f'''You are a Teaching Assistant and you will be evaluating student submissions based on a given rubric. Students are taking part in a {course_name} course to {course_goals}. This includes learning the key concepts of {key_concepts}. If a student's submission does not include anything to grade (empty submission) then provide 0s for all the concepts and say "missing submission" for the reasoning since every student still requires a grade.'''
 
-                        assessment_details = f'''Students were given an assessment where they had to solve a complex problem to test their understanding of {key_concepts}.
+                assessment_details = f'''Students were given an assessment where they had to solve a complex problem to test their understanding of {key_concepts}.
 Students were required to submit both their initial thoughts/reflections on how they plan to tackle the problem AND their final prompt/solution.
 {assessment_reflection_instructions}'''
 
-                        model_instructions = '''Your task is to evaluate both the student's initial thoughts/reflections AND their final prompt/solution to assess their understanding of key concepts given in the rubric below. Consider both components when grading: '''
+                model_instructions = '''Your task is to evaluate both the student's initial thoughts/reflections AND their final prompt/solution to assess their understanding of key concepts given in the rubric below. Consider both components when grading: '''
 
-                        rubric_json = {
-                            "Prompt Engineering": {"Description": "utilizes clear instructions, examples, formatting requirements and other best practices to design effective prompts.",
-                                "Grades": {
-                                    "Missing (0%)": "No prompts are designed.",
-                                    "Major Misconceptions (50%)": "Prompts poorly designed with short or unclear instructions; no formatting requirements; few examples; no step-by-step guidance.",
-                                    "Nearly Proficient (80%)": "Prompts designed with some clarity, but instructions, formatting requirements, or examples may be irrelevant or lack important details.",
-                                    "Proficient (100%)": "Prompts well-designed with clear instructions, relevant examples, and logical step-by-step thinking.",
-                                    "Mastery (102%)": "Prompts exceptionally well-designed with clear instructions, highly relevant examples, and comprehensive step-by-step guidance."
-                                }
-                            },
-                            "Prompt Workflow Breakdown": {"Description": "demonstrates clear step-by-step thinking to effectively break down into a series of prompts.",
-                                "Grades": {
-                                    "Missing (0%)": "Problem not broken down into steps/prompts.",
-                                    "Major Misconceptions (50%)": "Breakdown poorly designed with very few or irrelevant steps.",
-                                    "Nearly Proficient (80%)": "Workflow has some steps/clarity, but may lack important details.",
-                                    "Proficient (100%)": "Workflow well-designed with clear instructions and logical step-by-step thinking.",
-                                    "Mastery (102%)": "Workflow exceptionally well-designed with comprehensive step-by-step breakdown."
-                                }
-                            },
-                            "Evaluation Metrics": {"Description": "defines metrics that are well-defined and relevant to the problem",
-                                "Grades": {
-                                    "Missing (0%)": "No metrics defined.",
-                                    "Major Misconceptions (50%)": "Not enough metrics or not applicable to context.",
-                                    "Nearly Proficient (80%)": "Metrics defined but may lack clarity or relevance.",
-                                    "Proficient (100%)": "Metrics are well designed; applicable and insightful.",
-                                    "Mastery (102%)": "Metrics fully defined with perfect clarity; applicable and insightful."
-                                }
-                            }
+                rubric_json = {
+                    "Prompt Engineering": {"Description": "utilizes clear instructions, examples, formatting requirements and other best practices to design effective prompts.",
+                        "Grades": {
+                            "Missing (0%)": "No prompts are designed.",
+                            "Major Misconceptions (50%)": "Prompts poorly designed with short or unclear instructions; no formatting requirements; few examples; no step-by-step guidance.",
+                            "Nearly Proficient (80%)": "Prompts designed with some clarity, but instructions, formatting requirements, or examples may be irrelevant or lack important details.",
+                            "Proficient (100%)": "Prompts well-designed with clear instructions, relevant examples, and logical step-by-step thinking.",
+                            "Mastery (102%)": "Prompts exceptionally well-designed with clear instructions, highly relevant examples, and comprehensive step-by-step guidance."
                         }
+                    },
+                    "Prompt Workflow Breakdown": {"Description": "demonstrates clear step-by-step thinking to effectively break down into a series of prompts.",
+                        "Grades": {
+                            "Missing (0%)": "Problem not broken down into steps/prompts.",
+                            "Major Misconceptions (50%)": "Breakdown poorly designed with very few or irrelevant steps.",
+                            "Nearly Proficient (80%)": "Workflow has some steps/clarity, but may lack important details.",
+                            "Proficient (100%)": "Workflow well-designed with clear instructions and logical step-by-step thinking.",
+                            "Mastery (102%)": "Workflow exceptionally well-designed with comprehensive step-by-step breakdown."
+                        }
+                    },
+                    "Evaluation Metrics": {"Description": "defines metrics that are well-defined and relevant to the problem",
+                        "Grades": {
+                            "Missing (0%)": "No metrics defined.",
+                            "Major Misconceptions (50%)": "Not enough metrics or not applicable to context.",
+                            "Nearly Proficient (80%)": "Metrics defined but may lack clarity or relevance.",
+                            "Proficient (100%)": "Metrics are well designed; applicable and insightful.",
+                            "Mastery (102%)": "Metrics fully defined with perfect clarity; applicable and insightful."
+                        }
+                    }
+                }
 
-                        rubric_instructions = f'''For each of the three key concepts in the rubric: {key_concepts}, assign the student one of the Grades between Missing, Major Misconceptions, Nearly Proficient, Proficient, Mastery based on their understanding. Ensure the grades directly reflect the strengths and weaknesses identified in the critiques.'''
+                rubric_instructions = f'''For each of the three key concepts in the rubric: {key_concepts}, assign the student one of the Grades between Missing, Major Misconceptions, Nearly Proficient, Proficient, Mastery based on their understanding. Ensure the grades directly reflect the strengths and weaknesses identified in the critiques.'''
 
-                        expected_output_format = '''
+                expected_output_format = '''
 Assessment Scores:
 
 Concept: [Concept Name]
@@ -667,9 +665,9 @@ Grade: [Grade]
 Reasoning: [Rationale for score]
 '''
 
-                        expected_output_examples = '(Examples omitted for brevity)'
+                expected_output_examples = '(Examples omitted for brevity)'
 
-                        master_prompt = f'''
+                master_prompt = f'''
 Purpose: {purpose}
 
 Assessment Context: {assessment_details}
@@ -700,31 +698,35 @@ STUDENT'S FINAL PROMPT/SOLUTION:
 {student_final_prompt}
 '''
 
-                        st.session_state.grading_prompt_text = master_prompt
-                        grading_response = grading_model.generate_content(master_prompt)
-                        st.session_state.grade_feedback = grading_response.text
-                        st.success("Evaluation complete!")
-                    except GoogleAPIError as api_err:
-                        st.error(f"Gemini API Error during grading: {api_err.message}")
-                        st.exception(api_err)
-                    except Exception as e:
-                        st.error(f"An unexpected error occurred during grading: {e}")
-                        st.exception(e)
+                if 'grade_shown' not in st.session_state:
+                    st.session_state.grade_shown = False
 
-    with col_submit:
-        if st.button("Submit Answer", key=_uk("save_message_button"), disabled=(phase == 'locked')):
-            if not st.session_state.student_prompt_text.strip():
-                st.warning("Final prompt cannot be empty.")
-            else:
-                _submit_answer()
+                st.session_state.grading_prompt_text = master_prompt
+                grading_response = grading_model.generate_content(master_prompt)
+                st.session_state.grade_feedback = grading_response.text
+                st.session_state.grade_shown = True  # NEW
+
+                # Submit to Supabase
+                payload = {
+                    "student_name": st.session_state.get("visitor_id_input"),
+                    "transcript_text": st.session_state.edited_transcription_text,
+                    "student_prompt": st.session_state.student_prompt_text,
+                    "grade_json": {"text": st.session_state.grade_feedback},
+                }
+                data = insert_submission(payload)
+                if data:
+                    st.success("✅ Assessment graded and submitted!")
+                else:
+                    st.warning("⚠️ Graded response saved locally, but Supabase did not return a confirmation. Check Supabase policies or rules.")
+            except Exception as e:
+                st.error(f"❌ Failed to grade and submit assessment: {e}")
+                st.exception(e)
+
 
 # ---------- Grade feedback ----------
-if st.session_state.grade_feedback:
+if st.session_state.grade_shown and st.session_state.grade_feedback:
     st.subheader("Gemini Evaluation:")
     st.info(st.session_state.grade_feedback)
 
-# ---------- Optional gentle auto-refresh (keeps UI in sync around boundaries) ----------
-# Runs AFTER drawing the whole page, so it won't hide content.
-if phase != 'locked':
-    time.sleep(1)
-    st.rerun()
+
+
